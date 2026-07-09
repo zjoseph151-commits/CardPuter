@@ -4,20 +4,11 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 ## Priority 1: Stabilize Current Hardware Features
 
-- Test Environment with ENV III connected at boot.
-- Test Environment by opening the screen first, then plugging in ENV III and waiting for retry.
-- Test Environment with ENV III unplugged to confirm the firmware stays usable.
-- Confirm keyboard navigation still works while ENV III is plugged into Grove.
-- Confirm Voice Memos still records and plays after adding M5Unit-ENV.
-- Confirm Battery trend still behaves when charging starts/stops outside the Battery screen.
+- Current hardware features are stable enough to move forward.
+- Battery readings can still be quirky with ENV III attached, but `Charge:` is good enough for now.
 
 ## Priority 2: Environment Feature Improvements
 
-- Add optional environment logging to microSD as CSV.
-- Decide CSV columns before coding. Suggested columns: uptime seconds, temperature C, temperature F, humidity percent, pressure hPa, altitude m.
-- Add a start/stop logging control instead of logging automatically.
-- Show log file name and sample count on the Environment screen.
-- Add graceful behavior when SD is missing while Environment logging is requested.
 - Consider units/settings: C/F toggle, pressure hPa/inHg toggle, refresh interval.
 
 ## Priority 3: Project Structure Cleanup
@@ -83,9 +74,16 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Fixed display flicker using content canvas redraws.
 - Tuned Battery charging estimate with voltage trend threshold and continuous sampling.
 - Added a local Battery trend regression guard and clear-on-drop logic for charge stop behavior.
+- Raised Battery trend threshold to ignore observed unplugged +26 mV drift and stopped using percentage jumps as charging evidence.
+- Tried and reverted a dedicated ENV III I2C bus after QMP6988 pressure/altitude failed on hardware.
+- Made Battery `Charge:` ignore raw API charging when the filtered voltage trend does not confirm it.
+- Added a VBUS-present gate before Battery can show `Charging`.
 - Added scrollable WiFi Scan.
 - Added persistent Saved WiFi names with delete flow.
 - Added Voice Memos to microSD.
 - Added Level tool using IMU crosshair/dot display.
 - Tried and removed active OLED support.
 - Added Environment screen for M5Stack ENV III Unit.
+- Added optional Environment CSV logging to microSD with one new `/env/envNNN.csv` file per session.
+- Environment CSV columns: uptime seconds, temperature C, temperature F, humidity percent, pressure hPa, altitude m.
+- Added Environment `L` start/stop logging control, log file/sample display, and graceful SD-missing behavior.

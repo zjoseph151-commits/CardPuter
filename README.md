@@ -205,10 +205,12 @@ Important battery behavior:
 - The Cardputer power API does not always provide reliable charging/current status.
 - Charging detection uses trend logic rather than trusting the API alone.
 - The trend is sampled continuously in `loop()`, even while the user is not inside the Battery feature.
-- A deadzone is used: charging requires voltage trend above `CHARGING_TREND_THRESHOLD_MV = 20`.
+- A deadzone is used: charging requires voltage trend above `CHARGING_TREND_THRESHOLD_MV = 50`.
 - Confirmation requires `CHARGING_CONFIRM_SAMPLES = 3`.
+- Charging also requires VBUS/external power above `VBUS_PRESENT_THRESHOLD_MV = 4500`.
 - A confirmed drop from the sampled voltage peak clears inferred charging and restarts the trend baseline.
-- This was tuned after unplugged fluctuations around +/-10 mV caused false charging indicators, while real charging trends were around +100 mV.
+- Battery percentage is displayed but not used as charging evidence because it can jump with voltage-based estimation.
+- This was tuned after unplugged fluctuations around +/-10 mV, then an observed unplugged +26 mV drift, caused false charging indicators, while real charging trends were around +100 mV.
 
 ### System
 
@@ -298,15 +300,22 @@ Voice memo notes:
 Behavior:
 
 - Reads the M5Stack ENV III Unit over Grove I2C.
+- Uses the global Arduino `Wire` object for ENV III because this path reads both SHT30 and QMP6988 correctly on the Cardputer Adv.
 - Shows:
   - Temperature in C and F
   - Humidity in percent
   - Pressure in hPa
   - Altitude estimate in meters
   - Sensor status
+- Optional CSV logging to microSD.
 - Refreshes about once per second.
 - If the unit is unplugged or not found, the screen shows `ENV III not found` and retries every few seconds.
 - Supports partial sensor availability. If only SHT30 or only QMP6988 responds, the screen can still show the readings it can get.
+- Press `L` to start or stop logging.
+- Each logging session creates a new file such as `/env/env001.csv`.
+- CSV columns: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m`.
+- The Environment screen shows the log file name and sample count while logging.
+- If the SD card is missing, logging shows an error and the firmware remains usable.
 
 ENV constants:
 
@@ -412,14 +421,16 @@ Firmware power behavior:
 Important power decision:
 
 - The raw charging/current API was not reliable enough by itself on this hardware.
-- The Battery feature estimates Charging vs Not Charging from voltage/percent trend.
+- The Battery feature estimates Charging vs Not Charging from voltage trend plus VBUS presence.
 - Trend sampling must continue even while on the main menu or other feature screens. This fixed the issue where plugging/unplugging outside the Battery screen gave stale or misleading trend values when entering Battery later.
+- Battery percentage is shown only when the raw power API is not contradicting the filtered charging trend.
+- Raw power API status is still shown on the `API:` line for diagnosis, but it no longer overrides the filtered `Charge:` line.
 
 Voltage behavior observed by user:
 
 - Not charging can fluctuate around +/-10 mV.
 - Charging can trend around +100 mV.
-- Therefore the firmware uses a +20 mV threshold and 3-sample confirmation before showing Charging.
+- Therefore the firmware uses a +50 mV threshold, VBUS-present gate, and 3-sample confirmation before showing Charging.
 
 ## Display Architecture
 
@@ -568,6 +579,7 @@ Serial output includes:
 - Saved Wi-Fi events
 - Voice memo record/play/delete events
 - Environment sensor status and readings
+- Environment log start/stop events
 
 ## Important Commands And Scripts
 
@@ -630,6 +642,7 @@ After upload:
 - Voice Memos lists saved memos, plays with OK/Enter, and deletes selected memos with `D`.
 - Environment shows live temperature, humidity, and pressure when ENV III is connected.
 - Environment shows a not-found/retry message when ENV III is disconnected.
+- Environment uses `L to start or stop logging` and writes `/env/env001.csv` style files to microSD.
 - Level shows a moving dot and center crosshair using the Cardputer Adv IMU.
 
 ## Assumptions And Constraints

@@ -1,7 +1,11 @@
 from pathlib import Path
+import re
 
 
 SOURCE = Path("src/main.cpp").read_text()
+threshold_match = re.search(r"CHARGING_TREND_THRESHOLD_MV = (\d+)", SOURCE)
+assert threshold_match, "Missing CHARGING_TREND_THRESHOLD_MV"
+CHARGING_TREND_THRESHOLD_MV = int(threshold_match.group(1))
 
 
 required_tokens = [
@@ -14,6 +18,13 @@ required_tokens = [
 
 for token in required_tokens:
     assert token in SOURCE, f"Missing battery trend clear token: {token}"
+
+assert CHARGING_TREND_THRESHOLD_MV >= 50, (
+    "Battery charging inference threshold should be above observed unplugged +26 mV drift"
+)
+assert "levelDelta > 0" not in SOURCE, (
+    "Battery percentage is voltage-derived and should not infer charging by itself"
+)
 
 
 class BatteryTrend:
@@ -32,7 +43,7 @@ class BatteryTrend:
 
 
 def update_trend(trend, voltage_mv, battery_level):
-    threshold_mv = 20
+    threshold_mv = CHARGING_TREND_THRESHOLD_MV
     confirm_samples = 3
     clear_samples = 3
 
@@ -77,13 +88,7 @@ def update_trend(trend, voltage_mv, battery_level):
         return
 
     voltage_delta = trend.last_voltage_mv - trend.min_voltage_mv
-    level_delta = (
-        trend.last_level - trend.first_level
-        if trend.first_level >= 0 and trend.last_level >= 0
-        else 0
-    )
-
-    if level_delta > 0 or voltage_delta > threshold_mv:
+    if voltage_delta > threshold_mv:
         trend.trend_above_threshold_samples += 1
     else:
         trend.trend_above_threshold_samples = 0
@@ -96,20 +101,44 @@ def update_trend(trend, voltage_mv, battery_level):
 def test_charge_stop_clears_latched_inference():
     trend = BatteryTrend()
 
-    for voltage in (3800, 3812, 3830, 3845, 3860):
+    for voltage in (3800, 3830, 3865, 3895, 3905):
         update_trend(trend, voltage, 50)
 
     assert trend.inferred_charging, "Rising voltage samples should infer charging"
 
-    for voltage in (3838, 3825, 3810):
+    for voltage in (3865, 3835, 3805):
         update_trend(trend, voltage, 50)
 
     assert not trend.inferred_charging, (
         "A confirmed drop from the peak should clear inferred charging"
     )
-    assert trend.min_voltage_mv == 3810, "Trend baseline should restart after clearing"
+    assert trend.min_voltage_mv == 3805, "Trend baseline should restart after clearing"
+
+
+def test_unplugged_small_voltage_drift_does_not_infer_charging():
+    trend = BatteryTrend()
+
+    for voltage in (3800, 3809, 3818, 3826, 3826, 3826):
+        update_trend(trend, voltage, 50)
+
+    assert not trend.inferred_charging, (
+        "A stable unplugged +26 mV drift should stay below the charging threshold"
+    )
+
+
+def test_percentage_bounce_does_not_infer_charging_without_voltage_trend():
+    trend = BatteryTrend()
+
+    for battery_level in (50, 70, 70, 70):
+        update_trend(trend, 3800, battery_level)
+
+    assert not trend.inferred_charging, (
+        "Battery percentage jumps should not infer charging without a voltage trend"
+    )
 
 
 if __name__ == "__main__":
     test_charge_stop_clears_latched_inference()
+    test_unplugged_small_voltage_drift_does_not_infer_charging()
+    test_percentage_bounce_does_not_infer_charging_without_voltage_trend()
     print("Battery trend checks passed.")

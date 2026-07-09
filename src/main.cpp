@@ -13,9 +13,10 @@ constexpr const char* FIRMWARE_VERSION = "v0.1.0";
 
 constexpr int HEADER_HEIGHT = 22;
 constexpr int CONTENT_TOP = HEADER_HEIGHT + 4;
-constexpr int CHARGING_TREND_THRESHOLD_MV = 20;
+constexpr int CHARGING_TREND_THRESHOLD_MV = 50;
 constexpr int CHARGING_CONFIRM_SAMPLES = 3;
 constexpr int CHARGING_CLEAR_SAMPLES = 3;
+constexpr int VBUS_PRESENT_THRESHOLD_MV = 4500;
 constexpr int MAX_WIFI_NETWORKS = 40;
 constexpr int WIFI_VISIBLE_ROWS = 5;
 constexpr int MAX_SAVED_WIFI_NAMES = 20;
@@ -30,6 +31,9 @@ constexpr int ENV_I2C_SCL_PIN = 1;
 constexpr uint32_t ENV_I2C_FREQUENCY = 400000U;
 constexpr uint32_t ENV_REFRESH_INTERVAL_MS = 1000;
 constexpr uint32_t ENV_RETRY_INTERVAL_MS = 3000;
+constexpr const char* ENV_LOG_DIR = "/env";
+constexpr const char* ENV_LOG_HEADER =
+    "uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m";
 constexpr const char* VOICE_MEMO_DIR = "/memos";
 constexpr int MAX_VOICE_MEMOS = 30;
 constexpr int VOICE_MEMO_VISIBLE_ROWS = 5;
@@ -158,7 +162,9 @@ bool envSht30Ready = false;
 bool envQmp6988Ready = false;
 bool envHasTempHumidity = false;
 bool envHasPressure = false;
+bool envLogging = false;
 File voiceMemoFile;
+File envLogFile;
 String voiceMemoStatus;
 String activeVoiceMemoName;
 String activeVoiceMemoPath;
@@ -166,7 +172,11 @@ String pendingVoiceMemoDeleteName;
 String pendingVoiceMemoDeletePath;
 String voiceMemoDeleteResultMessage;
 String envStatus = "Not initialized.";
+String envLogStatus;
+String envLogFileName;
+String envLogFilePath;
 uint32_t voiceMemoRecordedBytes = 0;
+uint32_t envLogSampleCount = 0;
 unsigned long voiceMemoRecordingStartedMs = 0;
 unsigned long lastVoiceMemoRenderMs = 0;
 int16_t voiceRecordBuffer[VOICE_RECORD_CHUNK_SAMPLES];
@@ -230,6 +240,11 @@ bool deleteSelectedVoiceMemo();
 void resetVoiceMemoAudio();
 bool initEnvironmentSensor();
 bool readEnvironmentSensor();
+bool initEnvironmentLogSd();
+bool findNextEnvironmentLogPath(String& path, String& name);
+bool startEnvironmentLogging();
+void stopEnvironmentLogging(const char* message);
+void appendEnvironmentLogSample();
 void resetLevelSmoothing();
 void drawLevelCrosshair(int centerX, int centerY);
 void drawLevelDot(int dotX, int dotY, bool isLevel);
@@ -237,6 +252,9 @@ void printKeyState(const Keyboard_Class::KeysState& keys);
 bool isMenuBackKey(const Keyboard_Class::KeysState& keys);
 void sampleBatteryStatus();
 void updateBatteryTrend(int voltageMv, int batteryLevel);
+bool isExternalPowerPresent();
+bool isFilteredCharging();
+bool isBatteryLevelDisplayable();
 const char* chargingStatusText(m5::Power_Class::is_charging_t status);
 const char* inferredChargingText(m5::Power_Class::is_charging_t status);
 
@@ -437,7 +455,7 @@ void showBatteryInfo() {
     contentCanvas.print("Batt: unavailable");
   }
 
-  if (lastBatteryLevel >= 0) {
+  if (isBatteryLevelDisplayable()) {
     contentCanvas.printf(" %d%%\n", lastBatteryLevel);
   } else {
     contentCanvas.println(" --%");
@@ -1328,9 +1346,21 @@ void resetVoiceMemoAudio() {
 void showEnvironment() {
   lastEnvironmentRefreshMs = millis();
   const bool hasFreshReading = readEnvironmentSensor();
+  if (hasFreshReading) {
+    appendEnvironmentLogSample();
+  }
 
   beginContentDraw();
   contentCanvas.println("ENV III Unit");
+  if (envLogging) {
+    contentCanvas.printf("Log:%s #%lu\n", envLogFileName.c_str(), envLogSampleCount);
+    contentCanvas.println("L stop log");
+  } else {
+    contentCanvas.println("L start log");
+    if (envLogStatus.length() > 0) {
+      contentCanvas.println(envLogStatus.substring(0, 28));
+    }
+  }
 
   if (!envSensorInitialized) {
     contentCanvas.println("ENV III not found");
@@ -1435,6 +1465,125 @@ bool readEnvironmentSensor() {
   return updated;
 }
 
+bool initEnvironmentLogSd() {
+  SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
+
+  if (!SD.begin(SD_SPI_CS_PIN, SPI, SD_SPI_FREQUENCY)) {
+    envLogStatus = "SD init failed.";
+    Serial.println("Environment log: SD init failed.");
+    return false;
+  }
+
+  if (SD.cardType() == CARD_NONE) {
+    envLogStatus = "No SD card.";
+    Serial.println("Environment log: no SD card.");
+    return false;
+  }
+
+  if (!SD.exists(ENV_LOG_DIR) && !SD.mkdir(ENV_LOG_DIR)) {
+    envLogStatus = "Cannot make /env.";
+    Serial.println("Environment log: could not create /env.");
+    return false;
+  }
+
+  return true;
+}
+
+bool findNextEnvironmentLogPath(String& path, String& name) {
+  if (!initEnvironmentLogSd()) {
+    return false;
+  }
+
+  for (int i = 1; i <= 999; ++i) {
+    char filename[16];
+    snprintf(filename, sizeof(filename), "env%03d.csv", i);
+    name = filename;
+    path = String(ENV_LOG_DIR) + "/" + name;
+
+    if (!SD.exists(path.c_str())) {
+      return true;
+    }
+  }
+
+  envLogStatus = "Log list full.";
+  return false;
+}
+
+bool startEnvironmentLogging() {
+  if (envLogging) {
+    return true;
+  }
+
+  if (!findNextEnvironmentLogPath(envLogFilePath, envLogFileName)) {
+    return false;
+  }
+
+  envLogFile = SD.open(envLogFilePath.c_str(), FILE_WRITE);
+  if (!envLogFile) {
+    envLogStatus = "Log open failed.";
+    Serial.printf("Environment log: open failed for %s\n", envLogFilePath.c_str());
+    return false;
+  }
+
+  envLogFile.println(ENV_LOG_HEADER);
+  envLogFile.flush();
+  envLogSampleCount = 0;
+  envLogging = true;
+  envLogStatus = "Logging.";
+  Serial.printf("Environment log started: %s\n", envLogFilePath.c_str());
+  return true;
+}
+
+void stopEnvironmentLogging(const char* message) {
+  if (!envLogging) {
+    return;
+  }
+
+  envLogging = false;
+  if (envLogFile) {
+    envLogFile.flush();
+    envLogFile.close();
+  }
+
+  envLogStatus = message;
+  Serial.printf("Environment log stopped: %s (%lu samples)\n",
+                envLogFilePath.c_str(), envLogSampleCount);
+}
+
+void appendEnvironmentLogSample() {
+  if (!envLogging || !envLogFile) {
+    return;
+  }
+
+  const float tempF = (envTemperatureC * 9.0f / 5.0f) + 32.0f;
+
+  envLogFile.print(millis() / 1000UL);
+  envLogFile.print(',');
+  if (envHasTempHumidity) {
+    envLogFile.print(envTemperatureC, 2);
+  }
+  envLogFile.print(',');
+  if (envHasTempHumidity) {
+    envLogFile.print(tempF, 2);
+  }
+  envLogFile.print(',');
+  if (envHasTempHumidity) {
+    envLogFile.print(envHumidityPercent, 2);
+  }
+  envLogFile.print(',');
+  if (envHasPressure) {
+    envLogFile.print(envPressureHpa, 2);
+  }
+  envLogFile.print(',');
+  if (envHasPressure && isfinite(envAltitudeM)) {
+    envLogFile.print(envAltitudeM, 2);
+  }
+  envLogFile.println();
+  envLogFile.flush();
+
+  envLogSampleCount++;
+}
+
 void showLevelTool() {
   lastLevelRefreshMs = millis();
 
@@ -1530,6 +1679,9 @@ void handleKeyboard() {
       setScreen(Screen::VoiceMemos);
     } else if (currentScreen == Screen::VoiceMemos && voiceMemoRecording) {
       stopVoiceMemoRecording("Saved");
+    } else if (currentScreen == Screen::Environment && envLogging) {
+      stopEnvironmentLogging("Log stopped.");
+      setScreen(Screen::MainMenu);
     } else {
       setScreen(Screen::MainMenu);
     }
@@ -1635,6 +1787,17 @@ void handleKeyboard() {
       pendingVoiceMemoDeletePath = "";
       setScreen(Screen::VoiceMemos);
     }
+  } else if (currentScreen == Screen::Environment) {
+    for (char key : keys.word) {
+      if (key == 'l' || key == 'L') {
+        if (envLogging) {
+          stopEnvironmentLogging("Log stopped.");
+        } else {
+          startEnvironmentLogging();
+        }
+        showEnvironment();
+      }
+    }
   }
 }
 
@@ -1715,12 +1878,8 @@ void updateBatteryTrend(int voltageMv, int batteryLevel) {
   }
 
   const int voltageDelta = batteryTrend.lastVoltageMv - batteryTrend.minVoltageMv;
-  const int levelDelta =
-      (batteryTrend.firstLevel >= 0 && batteryTrend.lastLevel >= 0)
-          ? batteryTrend.lastLevel - batteryTrend.firstLevel
-          : 0;
 
-  if (levelDelta > 0 || voltageDelta > CHARGING_TREND_THRESHOLD_MV) {
+  if (voltageDelta > CHARGING_TREND_THRESHOLD_MV) {
     batteryTrend.trendAboveThresholdSamples++;
   } else {
     batteryTrend.trendAboveThresholdSamples = 0;
@@ -1730,6 +1889,27 @@ void updateBatteryTrend(int voltageMv, int batteryLevel) {
   if (batteryTrend.trendAboveThresholdSamples >= CHARGING_CONFIRM_SAMPLES) {
     batteryTrend.inferredCharging = true;
   }
+}
+
+bool isExternalPowerPresent() {
+  return lastVbusVoltageMv >= VBUS_PRESENT_THRESHOLD_MV;
+}
+
+bool isFilteredCharging() {
+  return isExternalPowerPresent() && batteryTrend.initialized &&
+         batteryTrend.inferredCharging;
+}
+
+bool isBatteryLevelDisplayable() {
+  if (lastBatteryLevel < 0) {
+    return false;
+  }
+
+  if (lastChargingStatus == m5::Power_Class::is_charging && !isFilteredCharging()) {
+    return false;
+  }
+
+  return true;
 }
 
 const char* chargingStatusText(m5::Power_Class::is_charging_t status) {
@@ -1745,19 +1925,9 @@ const char* chargingStatusText(m5::Power_Class::is_charging_t status) {
 }
 
 const char* inferredChargingText(m5::Power_Class::is_charging_t status) {
-  if (status == m5::Power_Class::is_charging) {
-    return "Charging";
-  }
+  (void)status;
 
-  if (status == m5::Power_Class::is_discharging) {
-    return "Not charging";
-  }
-
-  if (!batteryTrend.initialized) {
-    return "Not charging";
-  }
-
-  if (batteryTrend.inferredCharging) {
+  if (isFilteredCharging()) {
     return "Charging";
   }
 

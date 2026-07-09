@@ -82,23 +82,30 @@ The Cardputer power API did not provide enough reliable charging information for
 Observed behavior:
 
 - Not charging can fluctuate around +/-10 mV.
+- Unplugged drift has also been observed sitting around +26 mV.
 - Charging can trend around +100 mV.
 - Raw current can show `0mA` or unavailable even while the battery percentage rises.
 - Raw charge status can be unknown.
+- Battery percentage can jump while plugged in because it appears to be voltage-derived.
 
 Current approach:
 
 - Sample battery continuously in `loop()`.
 - Keep trend alive across screen changes.
 - Show only `Charging` or `Not charging`.
-- Use `CHARGING_TREND_THRESHOLD_MV = 20`.
+- Use `CHARGING_TREND_THRESHOLD_MV = 50`.
 - Use `CHARGING_CONFIRM_SAMPLES = 3`.
 - Use `CHARGING_CLEAR_SAMPLES = 3`.
+- Use `VBUS_PRESENT_THRESHOLD_MV = 4500`.
 - Clear inferred charging after a confirmed voltage drop from the sampled peak, then restart the trend baseline at the current sample.
+- Do not use battery percentage increases as charging evidence.
+- Do not show `Charging` unless VBUS/external power is present.
 
 Important history:
 
 - Resetting trend only when entering Battery caused incorrect readings when plugging/unplugging on the main menu.
+- A +20 mV charging threshold was too low because unplugged drift could sit around +26 mV.
+- ENV III attached to Grove can disturb raw Battery readings enough that Battery now requires VBUS before showing `Charging`.
 - Labels like `Watching`, `Likely charging`, and similar were rejected by the user.
 - Firmware version was removed from Battery because System already shows it.
 
@@ -189,11 +196,13 @@ Pins:
 - `ENV_I2C_SDA_PIN = 2`
 - `ENV_I2C_SCL_PIN = 1`
 - `ENV_I2C_FREQUENCY = 400000`
+- Uses the global Arduino `Wire` object.
 
 Timing:
 
 - Refresh: 1000 ms
 - Retry when missing: 3000 ms
+- Logging writes one row per fresh Environment reading while active.
 
 Behavior:
 
@@ -202,6 +211,17 @@ Behavior:
 - If neither responds, displays `ENV III not found`.
 - Retries while the screen is open.
 - Prints readings/status to Serial.
+- Press `L` on the Environment screen to start or stop optional CSV logging.
+- Each logging session creates a new file in `/env`, named `env001.csv`, `env002.csv`, etc.
+- CSV header: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m`.
+- The screen shows the active log file name and sample count.
+- Backspace stops any active Environment log before returning to the main menu.
+- Missing SD card or `/env` creation failure shows a status message and leaves the firmware usable.
+
+Important history:
+
+- A `TwoWire envWire(1)` experiment compiled, but on hardware QMP6988 pressure read as `0.0 hPa` and altitude as `inf m`.
+- Reverted ENV III to the global `Wire` path because it reads both SHT30 and QMP6988 correctly.
 
 Manual wiring if not using Grove connector:
 
