@@ -211,8 +211,11 @@ Behavior:
 - If neither responds, displays `ENV III not found`.
 - Retries while the screen is open.
 - Prints readings/status to Serial.
-- Press `L` on the Environment screen to start or stop optional CSV logging.
-- Each logging session creates a new file in `/env`, named `env001.csv`, `env002.csv`, etc.
+- Press `L` on the Environment screen to open a log-name entry screen before starting optional CSV logging.
+- OK/Enter starts logging with the typed name; Backspace deletes characters, or cancels when the name is blank.
+- Names allow letters, numbers, spaces, `_`, and `-`; spaces are saved as underscores and names are capped at 16 characters.
+- Blank names fall back to `env001.csv`, `env002.csv`, etc.
+- Named sessions create files in `/env`, such as `backyard001.csv`.
 - CSV header: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m`.
 - The screen shows the active log file name and sample count.
 - Backspace stops any active Environment log before returning to the main menu.

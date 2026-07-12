@@ -311,8 +311,11 @@ Behavior:
 - Refreshes about once per second.
 - If the unit is unplugged or not found, the screen shows `ENV III not found` and retries every few seconds.
 - Supports partial sensor availability. If only SHT30 or only QMP6988 responds, the screen can still show the readings it can get.
-- Press `L` to start or stop logging.
-- Each logging session creates a new file such as `/env/env001.csv`.
+- Press `L` to name and start logging; press `L` again while logging to stop.
+- The log-name screen accepts letters, numbers, spaces, `_`, and `-`.
+- Backspace deletes characters while naming; OK/Enter starts logging.
+- Blank names fall back to `/env/env001.csv`.
+- Named sessions create files such as `/env/backyard001.csv`; spaces become underscores and names are capped at 16 characters.
 - CSV columns: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m`.
 - The Environment screen shows the log file name and sample count while logging.
 - If the SD card is missing, logging shows an error and the firmware remains usable.
@@ -642,7 +645,8 @@ After upload:
 - Voice Memos lists saved memos, plays with OK/Enter, and deletes selected memos with `D`.
 - Environment shows live temperature, humidity, and pressure when ENV III is connected.
 - Environment shows a not-found/retry message when ENV III is disconnected.
-- Environment uses `L to start or stop logging` and writes `/env/env001.csv` style files to microSD.
+- Environment uses `L to name and start logging`; OK/Enter starts logging and Backspace deletes characters while naming.
+- Environment writes `/env/env001.csv` or named files such as `/env/backyard001.csv` to microSD.
 - Level shows a moving dot and center crosshair using the Cardputer Adv IMU.
 
 ## Assumptions And Constraints

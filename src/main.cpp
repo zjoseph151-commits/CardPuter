@@ -34,6 +34,7 @@ constexpr uint32_t ENV_RETRY_INTERVAL_MS = 3000;
 constexpr const char* ENV_LOG_DIR = "/env";
 constexpr const char* ENV_LOG_HEADER =
     "uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m";
+constexpr int ENV_LOG_NAME_MAX_LENGTH = 16;
 constexpr const char* VOICE_MEMO_DIR = "/memos";
 constexpr int MAX_VOICE_MEMOS = 30;
 constexpr int VOICE_MEMO_VISIBLE_ROWS = 5;
@@ -61,6 +62,7 @@ enum class Screen {
   VoiceMemoDeleteConfirm,
   VoiceMemoDeleteResult,
   Environment,
+  EnvironmentLogName,
   LevelTool,
 };
 
@@ -175,6 +177,7 @@ String envStatus = "Not initialized.";
 String envLogStatus;
 String envLogFileName;
 String envLogFilePath;
+String envLogNameInput;
 uint32_t voiceMemoRecordedBytes = 0;
 uint32_t envLogSampleCount = 0;
 unsigned long voiceMemoRecordingStartedMs = 0;
@@ -207,6 +210,7 @@ void renderVoiceMemos();
 void renderVoiceMemoDeleteConfirm();
 void renderVoiceMemoDeleteResult();
 void showEnvironment();
+void renderEnvironmentLogName();
 void showLevelTool();
 
 void setScreen(Screen screen);
@@ -241,8 +245,10 @@ void resetVoiceMemoAudio();
 bool initEnvironmentSensor();
 bool readEnvironmentSensor();
 bool initEnvironmentLogSd();
-bool findNextEnvironmentLogPath(String& path, String& name);
+String sanitizeEnvironmentLogName(const String& requestedName);
+bool findNextEnvironmentLogPath(const String& requestedName, String& path, String& name);
 bool startEnvironmentLogging();
+bool startEnvironmentLogging(const String& requestedName);
 void stopEnvironmentLogging(const char* message);
 void appendEnvironmentLogSample();
 void resetLevelSmoothing();
@@ -385,6 +391,11 @@ void setScreen(Screen screen) {
       drawScreenFrame("Environment");
       initEnvironmentSensor();
       showEnvironment();
+      break;
+    case Screen::EnvironmentLogName:
+      envLogNameInput = "";
+      drawScreenFrame("Log Name");
+      renderEnvironmentLogName();
       break;
     case Screen::LevelTool:
       resetLevelSmoothing();
@@ -1356,7 +1367,7 @@ void showEnvironment() {
     contentCanvas.printf("Log:%s #%lu\n", envLogFileName.c_str(), envLogSampleCount);
     contentCanvas.println("L stop log");
   } else {
-    contentCanvas.println("L start log");
+    contentCanvas.println("L name log");
     if (envLogStatus.length() > 0) {
       contentCanvas.println(envLogStatus.substring(0, 28));
     }
@@ -1393,6 +1404,25 @@ void showEnvironment() {
     contentCanvas.println("Waiting for update...");
   }
 
+  commitContentDraw();
+}
+
+void renderEnvironmentLogName() {
+  beginContentDraw();
+  contentCanvas.println("Name this log:");
+  contentCanvas.println();
+
+  if (envLogNameInput.length() > 0) {
+    contentCanvas.printf("> %s\n", envLogNameInput.substring(0, 22).c_str());
+  } else {
+    contentCanvas.println("> (blank = envNNN)");
+  }
+
+  contentCanvas.println();
+  contentCanvas.println("OK start");
+  contentCanvas.println("Back del/cancel");
+  contentCanvas.printf("%d/%d chars\n", envLogNameInput.length(),
+                       ENV_LOG_NAME_MAX_LENGTH);
   commitContentDraw();
 }
 
@@ -1489,14 +1519,44 @@ bool initEnvironmentLogSd() {
   return true;
 }
 
-bool findNextEnvironmentLogPath(String& path, String& name) {
+String sanitizeEnvironmentLogName(const String& requestedName) {
+  String cleanName;
+
+  for (int i = 0; i < requestedName.length() &&
+                  cleanName.length() < ENV_LOG_NAME_MAX_LENGTH;
+       ++i) {
+    const char c = requestedName.charAt(i);
+
+    if (isAlphaNumeric(c) || c == '_' || c == '-') {
+      cleanName += c;
+    } else if (c == ' ' && cleanName.length() > 0 &&
+               cleanName.charAt(cleanName.length() - 1) != '_') {
+      cleanName += '_';
+    }
+  }
+
+  cleanName.trim();
+  while (cleanName.endsWith("_")) {
+    cleanName.remove(cleanName.length() - 1);
+  }
+
+  if (cleanName.length() == 0) {
+    cleanName = "env";
+  }
+
+  return cleanName;
+}
+
+bool findNextEnvironmentLogPath(const String& requestedName, String& path, String& name) {
   if (!initEnvironmentLogSd()) {
     return false;
   }
 
+  const String cleanName = sanitizeEnvironmentLogName(requestedName);
+
   for (int i = 1; i <= 999; ++i) {
-    char filename[16];
-    snprintf(filename, sizeof(filename), "env%03d.csv", i);
+    char filename[32];
+    snprintf(filename, sizeof(filename), "%s%03d.csv", cleanName.c_str(), i);
     name = filename;
     path = String(ENV_LOG_DIR) + "/" + name;
 
@@ -1510,11 +1570,15 @@ bool findNextEnvironmentLogPath(String& path, String& name) {
 }
 
 bool startEnvironmentLogging() {
+  return startEnvironmentLogging("");
+}
+
+bool startEnvironmentLogging(const String& requestedName) {
   if (envLogging) {
     return true;
   }
 
-  if (!findNextEnvironmentLogPath(envLogFilePath, envLogFileName)) {
+  if (!findNextEnvironmentLogPath(requestedName, envLogFilePath, envLogFileName)) {
     return false;
   }
 
@@ -1677,6 +1741,13 @@ void handleKeyboard() {
       setScreen(Screen::SavedWifi);
     } else if (currentScreen == Screen::VoiceMemoDeleteConfirm) {
       setScreen(Screen::VoiceMemos);
+    } else if (currentScreen == Screen::EnvironmentLogName) {
+      if (envLogNameInput.length() > 0) {
+        envLogNameInput.remove(envLogNameInput.length() - 1);
+        renderEnvironmentLogName();
+      } else {
+        setScreen(Screen::Environment);
+      }
     } else if (currentScreen == Screen::VoiceMemos && voiceMemoRecording) {
       stopVoiceMemoRecording("Saved");
     } else if (currentScreen == Screen::Environment && envLogging) {
@@ -1793,10 +1864,34 @@ void handleKeyboard() {
         if (envLogging) {
           stopEnvironmentLogging("Log stopped.");
         } else {
-          startEnvironmentLogging();
+          setScreen(Screen::EnvironmentLogName);
+          return;
         }
         showEnvironment();
       }
+    }
+  } else if (currentScreen == Screen::EnvironmentLogName) {
+    bool changed = false;
+
+    for (char key : keys.word) {
+      if (envLogNameInput.length() >= ENV_LOG_NAME_MAX_LENGTH) {
+        break;
+      }
+
+      if (isAlphaNumeric(key) || key == ' ' || key == '_' || key == '-') {
+        envLogNameInput += key;
+        changed = true;
+      }
+    }
+
+    if (keys.enter) {
+      startEnvironmentLogging(envLogNameInput);
+      setScreen(Screen::Environment);
+      return;
+    }
+
+    if (changed) {
+      renderEnvironmentLogName();
     }
   }
 }

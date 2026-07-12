@@ -11,7 +11,34 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 - Consider units/settings: C/F toggle, pressure hPa/inHg toggle, refresh interval.
 
-## Priority 3: Project Structure Cleanup
+## Priority 3: NRF24L01 Module Integration
+
+- Integrate the NRF24L01+ PA+LNA module with SMA antenna and breakout adapter.
+- Treat this as both a wiring/power task and a firmware task.
+- Confirm the wiring plan before coding:
+  - VCC and GND
+  - SPI SCK, MISO, MOSI
+  - CSN/chip-select
+  - CE
+  - optional IRQ if needed later
+- Avoid known active or risky pins:
+  - SD card pins: G40 SCK, G39 MISO, G14 MOSI, G12 CS
+  - ENV III Grove I2C pins: G2 SDA, G1 SCL
+  - internal/shared I2C pins G8/G9
+- Decide whether NRF24L01 should use a separate SPI bus or share an SPI bus safely with a dedicated CSN pin.
+- Prefer the Arduino `RF24` library if it builds cleanly with ESP32-S3 / PlatformIO.
+- First firmware milestone should be a simple `NRF24` diagnostics feature:
+  - initialize radio
+  - show wiring/config status
+  - show channel, data rate, PA level, and address
+  - send a test packet
+  - listen for a test packet
+  - show packet counters and last packet text
+- Keep the first implementation graceful if the module is missing or wiring is wrong.
+- Add local guard scripts for menu integration and NRF feature structure before hardware testing.
+- A second NRF24L01 node will be needed to fully prove send/receive behavior.
+
+## Priority 4: Project Structure Cleanup
 
 - Split `src/main.cpp` into smaller feature files once current behavior is stable.
 - Suggested future files:
@@ -22,14 +49,6 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - `src/environment_screen.h` / `src/environment_screen.cpp`
   - `src/level_tool.h` / `src/level_tool.cpp`
 - Only refactor after guard scripts are passing and the user is not actively testing a hardware issue.
-
-## Priority 4: Voice Memo Improvements
-
-- Add a clearer playback progress indicator.
-- Add a cancel playback key if practical.
-- Add memo duration display after scanning WAV headers.
-- Decide whether recordings should be named by timestamp once a clock/time source exists.
-- Consider lowering speaker volume or making volume configurable.
 
 ## Priority 5: Saved Wi-Fi And Networking Prep
 
@@ -86,4 +105,4 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Added Environment screen for M5Stack ENV III Unit.
 - Added optional Environment CSV logging to microSD with one new `/env/envNNN.csv` file per session.
 - Environment CSV columns: uptime seconds, temperature C, temperature F, humidity percent, pressure hPa, altitude m.
-- Added Environment `L` start/stop logging control, log file/sample display, and graceful SD-missing behavior.
+- Added Environment log naming before start, `L` start/stop logging control, log file/sample display, and graceful SD-missing behavior.
