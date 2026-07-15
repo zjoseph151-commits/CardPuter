@@ -14,8 +14,10 @@ Start here if this repository is opened in a fresh Codex chat.
 2. Do not assume unused pins are safe. **Avoid using G8/G9 directly** for external I2C hardware on the Cardputer Adv; those pins share the internal I2C bus and caused keyboard failures during OLED testing.
 3. Do not store Wi-Fi credentials or connect to Wi-Fi unless the user explicitly asks for that milestone.
 4. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
-5. Build with `python -m platformio run` if `pio` is not on PATH.
-6. Run all guard scripts before claiming work is complete:
+5. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
+6. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
+7. Build with `python -m platformio run` if `pio` is not on PATH.
+8. Run all guard scripts before claiming work is complete:
 
 ```sh
 python tools/check_battery_trend.py
@@ -47,6 +49,7 @@ Current state:
 - Uses the built-in display as the only UI display.
 - Uses the Grove I2C port for the M5Stack ENV III Unit.
 - Uses microSD for voice memo storage.
+- RF Scan works with the NRF24L01 module and shows quiet channels for future NRF24 projects.
 - Has no Wi-Fi credentials and makes no Wi-Fi connection attempts.
 - Has no active ESP-NOW code.
 - Has no active external OLED display code.
@@ -77,6 +80,7 @@ Optional hardware:
 
 - microSD card for Voice Memos
 - USB-C data cable for upload and serial monitor
+- NRF24L01+ PA+LNA module with adapter/breakout for RF Scan
 
 Hardware intentionally not active right now:
 
@@ -138,7 +142,17 @@ Important build note:
 |-- todo.md
 |-- platformio.ini
 |-- src/
-|   `-- main.cpp
+|   |-- app.h
+|   |-- app_state.cpp
+|   |-- environment_screen.cpp
+|   |-- input.cpp
+|   |-- level_tool.cpp
+|   |-- main.cpp
+|   |-- power_screen.cpp
+|   |-- rf_scanner.cpp
+|   |-- ui.cpp
+|   |-- voice_memos.cpp
+|   `-- wifi_screens.cpp
 |-- nodes/
 |   `-- xiao_nrf24_oled/
 |       |-- README.md
@@ -157,6 +171,7 @@ Important build note:
 |   |-- check_saved_wifi.py
 |   |-- check_voice_memos.py
 |   |-- check_wifi_scroll.py
+|   |-- firmware_source.py
 |   `-- check_xiao_nrf24_node.py
 `-- docs/
     `-- superpowers/
@@ -169,10 +184,20 @@ Important build note:
 
 File responsibilities:
 
-- [src/main.cpp](src/main.cpp): all firmware code currently lives here. It contains setup, loop, screen state machine, UI rendering, input handling, Wi-Fi scan/saved SSID logic, voice memo logic, Environment sensor logic, battery/system screens, and level tool.
+- [src/main.cpp](src/main.cpp): firmware entry point with `setup()` and `loop()`.
+- [src/app.h](src/app.h): shared constants, types, global declarations, and function prototypes.
+- [src/app_state.cpp](src/app_state.cpp): shared global state, menu definitions, and hardware helper objects.
+- [src/ui.cpp](src/ui.cpp): screen routing, header/content drawing helpers, and main menu rendering.
+- [src/input.cpp](src/input.cpp): keyboard event dispatch and screen-specific key handling.
+- [src/power_screen.cpp](src/power_screen.cpp): Battery/System screens and battery trend logic.
+- [src/wifi_screens.cpp](src/wifi_screens.cpp): Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
+- [src/voice_memos.cpp](src/voice_memos.cpp): microSD WAV recording, listing, playback, and delete flow.
+- [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
+- [src/rf_scanner.cpp](src/rf_scanner.cpp): NRF24 radio setup and RF channel scanner.
+- [src/level_tool.cpp](src/level_tool.cpp): BMI270 level/crosshair tool.
 - [platformio.ini](platformio.ini): board/framework/library configuration.
 - [nodes/xiao_nrf24_oled](nodes/xiao_nrf24_oled): separate PlatformIO project for the XIAO ESP32-C3 NRF24/OLED proof node.
-- [tools/](tools): lightweight Python guard scripts. These are not full unit tests, but they catch accidental removal of important behavior and design decisions.
+- [tools/](tools): lightweight Python guard scripts. These are not full unit tests, but they catch accidental removal of important behavior and design decisions. Firmware guards use [tools/firmware_source.py](tools/firmware_source.py) to scan all `src` files.
 - [docs/superpowers/plans/](docs/superpowers/plans): implementation plan history for completed features.
 - [notes.md](notes.md): deeper technical notes, lessons learned, and reasoning.
 - [todo.md](todo.md): prioritized next work.
@@ -584,7 +609,7 @@ Guard script:
 - Use microSD for voice memos because audio files are too large for NVS.
 - Use Grove I2C for external sensors; do not attach external I2C modules to Cardputer Adv internal G8/G9.
 - Keep uncertain hardware APIs defensive. A missing ENV III or SD card should show a status message and leave the firmware usable.
-- Leave the project mostly in `src/main.cpp` for now because the user is still iterating quickly. A later cleanup could split features into modules once behavior settles.
+- Keep feature files small enough to understand one screen at a time, with shared declarations centralized in `src/app.h`.
 
 ## Known Bugs, Issues, And Limitations
 
@@ -597,7 +622,6 @@ Guard script:
 - Voice memo list is capped at 30 displayed WAV files even though names can go up to `memo999.wav`.
 - The UI is tuned for the 240x135 built-in screen; long SSIDs and file names are truncated.
 - No timezone/clock/date handling exists yet.
-- No code has been split into separate modules yet.
 
 ## Things Already Tried That Did Not Work
 
@@ -628,18 +652,16 @@ Guard script:
 
 Highest priority:
 
-1. Keep testing the new Environment screen with the ENV III connected and disconnected.
-2. Confirm no keyboard regression while ENV III is plugged into Grove.
-3. Decide whether Environment should eventually log readings to SD.
+1. Smoke-test the split firmware on Cardputer Adv hardware after upload.
+2. Keep testing the Environment screen with the ENV III connected and disconnected.
+3. Confirm no keyboard regression while ENV III is plugged into Grove.
 
 Good near-term improvements:
 
-1. Add an Environment logging feature to CSV on microSD.
-2. Add timestamps if a reliable time source is introduced.
-3. Add a simple settings screen for units, refresh rate, and maybe Fahrenheit-only display.
-4. Add a file browser or memo management improvements for Voice Memos.
-5. Refactor `src/main.cpp` into smaller feature files once feature churn slows down.
-6. Add a safe config pattern for future Wi-Fi credentials without hardcoding secrets.
+1. Add timestamps if a reliable time source is introduced.
+2. Add a simple settings screen for units, refresh rate, and maybe Fahrenheit-only display.
+3. Add a file browser or memo management improvements for Voice Memos.
+4. Add a safe config pattern for future Wi-Fi credentials without hardcoding secrets.
 
 Future bigger milestones:
 

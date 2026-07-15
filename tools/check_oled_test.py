@@ -1,12 +1,13 @@
 from pathlib import Path
 
+from firmware_source import firmware_source_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
-MAIN = ROOT / "src" / "main.cpp"
 README = ROOT / "README.md"
 PLATFORMIO = ROOT / "platformio.ini"
 
-main = MAIN.read_text(encoding="utf-8")
+main = firmware_source_text()
 readme = README.read_text(encoding="utf-8")
 platformio = PLATFORMIO.read_text(encoding="utf-8")
 

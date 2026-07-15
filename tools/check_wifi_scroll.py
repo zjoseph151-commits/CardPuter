@@ -1,7 +1,7 @@
-from pathlib import Path
+from firmware_source import firmware_source_text
 
 
-SOURCE = Path("src/main.cpp").read_text()
+SOURCE = firmware_source_text()
 
 
 def test_wifi_scan_is_scrollable():
@@ -18,4 +18,3 @@ def test_wifi_scan_is_scrollable():
 if __name__ == "__main__":
     test_wifi_scan_is_scrollable()
     print("WiFi scroll checks passed.")
-

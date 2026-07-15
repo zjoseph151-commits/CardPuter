@@ -6,6 +6,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 - Current hardware features are stable enough to move forward.
 - Battery readings can still be quirky with ENV III attached, but `Charge:` is good enough for now.
+- Revisit menu and features to clean them up.
 
 ## Priority 2: Environment Feature Improvements
 
@@ -13,45 +14,22 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 ## Priority 3: NRF24L01 Module Integration
 
-- Integrate the NRF24L01+ PA+LNA module with SMA antenna and breakout adapter.
-- Treat this as both a wiring/power task and a firmware task.
-- Confirm the wiring plan before coding:
-  - VCC and GND
-  - SPI SCK, MISO, MOSI
-  - CSN/chip-select
-  - CE
-  - optional IRQ if needed later
-- Treat the EXT SPI pins as shared with microSD:
-  - shared SPI: G40 SCK, G39 MISO, G14 MOSI
-  - microSD CS: G12
-  - NRF24 CSN/chip-select: G5
-- Avoid known active or risky pins:
-  - do not reuse microSD CS G12 as NRF24 CSN
-  - ENV III Grove I2C pins: G2 SDA, G1 SCL
-  - internal/shared I2C pins G8/G9
-- Decide whether NRF24L01 should use a separate SPI bus or share an SPI bus safely with a dedicated CSN pin.
-- Current firmware milestone uses the Arduino `RF24` library and a simple RF channel scanner:
-  - initialize radio
-  - show wiring/config status
+- Current RF Scan milestone is complete enough to move on; user confirmed it works on hardware on 2026-07-15.
+- Do not resume the XIAO two-node send/receive proof unless the user explicitly asks.
+- The XIAO ESP32-C3 OLED send/receive proof is retired for now after asymmetric behavior could not be resolved locally.
+- Current firmware milestone uses a simple RF channel scanner:
   - Sweep channels 0-125
   - show a per-channel activity bar graph
   - highlight quiet channels for future NRF24 projects
-  - allow manual rescan
-- Keep the first implementation graceful if the module is missing or wiring is wrong.
-- Add local guard scripts for menu integration and NRF feature structure before hardware testing.
-- The XIAO ESP32-C3 OLED send/receive proof is retired for now after asymmetric behavior could not be resolved locally.
 
 ## Priority 4: Project Structure Cleanup
 
-- Split `src/main.cpp` into smaller feature files once current behavior is stable.
-- Suggested future files:
-  - `src/ui.h` / `src/ui.cpp`
-  - `src/power_screen.h` / `src/power_screen.cpp`
-  - `src/wifi_screens.h` / `src/wifi_screens.cpp`
-  - `src/voice_memos.h` / `src/voice_memos.cpp`
-  - `src/environment_screen.h` / `src/environment_screen.cpp`
-  - `src/level_tool.h` / `src/level_tool.cpp`
-- Only refactor after guard scripts are passing and the user is not actively testing a hardware issue.
+- Initial project structure cleanup is done.
+- `src/main.cpp` now contains only `setup()` and `loop()`.
+- Shared declarations live in `src/app.h`; shared globals/menu state live in `src/app_state.cpp`.
+- Feature code is split into `src/ui.cpp`, `src/input.cpp`, `src/power_screen.cpp`, `src/wifi_screens.cpp`, `src/voice_memos.cpp`, `src/environment_screen.cpp`, `src/rf_scanner.cpp`, and `src/level_tool.cpp`.
+- Firmware guard scripts scan all source files through `tools/firmware_source.py`.
+- Future cleanup should stay incremental and only happen after guards/build pass.
 
 ## Priority 5: Saved Wi-Fi And Networking Prep
 
@@ -114,3 +92,6 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Tuned NRF24 proof firmware after hardware testing showed payloads could arrive even when RF24 hardware ACK was missed: switched to 250 kbps, disabled RF hardware ACK for proof mode, simplified to shared `SCBR1` address, added XIAO beacons, added Cardputer RPD/carrier counters, lowered XIAO PA for close-range testing, made the XIAO send repeated delayed replies, and added TX success/failure plus RX pipe/FIFO diagnostics.
 - Retired the active XIAO two-node proof after testing showed Cardputer-to-XIAO worked, XIAO TX/OK increased with no failures, but Cardputer did not decode XIAO beacons or replies.
 - Replaced the active NRF24 diagnostics screen with an RF channel scanner that sweeps 0-125, draws a bar graph, and highlights quiet channels.
+- User confirmed RF Scan is working fine on Cardputer hardware on 2026-07-15.
+- Split the Cardputer firmware out of monolithic `src/main.cpp` into shared app state plus feature modules while keeping guards and PlatformIO build passing.
+- Main menu header now reads `Scoober (Use arrows, OK to select)` and menu rows were shifted up to fit cleanly.

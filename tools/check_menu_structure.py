@@ -1,7 +1,7 @@
-from pathlib import Path
+from firmware_source import firmware_source_text
 
 
-SOURCE = Path("src/main.cpp").read_text()
+SOURCE = firmware_source_text()
 
 
 def test_scoober_menu_structure():

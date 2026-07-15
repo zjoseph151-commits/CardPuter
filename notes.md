@@ -7,10 +7,25 @@ These notes preserve project context for future Codex sessions. They are intenti
 - Firmware/project name shown to the user: `Scoober`
 - Original scaffold idea: `cardputer-project-launcher`
 - Current firmware version constant: `v0.1.0`
-- Main source file: `src/main.cpp`
+- Firmware entry point: `src/main.cpp`
 - Target board in PlatformIO: `m5stack-stamps3`
 - Framework: Arduino
 - Device: M5Stack Cardputer Adv Version
+
+## Source Layout
+
+- `src/main.cpp`: `setup()` and `loop()`.
+- `src/app.h`: shared constants, types, global declarations, and function prototypes.
+- `src/app_state.cpp`: shared global state, menu definitions, and hardware helper objects.
+- `src/ui.cpp`: screen routing, frame/content drawing helpers, and main menu rendering.
+- `src/input.cpp`: keyboard event dispatch and screen-specific key handling.
+- `src/power_screen.cpp`: Battery/System screens and battery trend logic.
+- `src/wifi_screens.cpp`: Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
+- `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
+- `src/environment_screen.cpp`: ENV III readings and CSV logging.
+- `src/rf_scanner.cpp`: NRF24 setup and RF channel scanner.
+- `src/level_tool.cpp`: BMI270 level/crosshair tool.
+- Firmware guard scripts use `tools/firmware_source.py` so checks scan all `.cpp` and `.h` files under `src`.
 
 ## Current Menu State
 
@@ -244,6 +259,11 @@ Guard:
 
 The active NRF24L01 feature is now an RF channel scanner. The earlier Cardputer/XIAO send-receive proof is retired for now and documented below.
 
+Hardware status:
+
+- User confirmed RF Scan is working fine on the Cardputer Adv hardware on 2026-07-15.
+- Treat the RF Scan milestone as complete enough to move on unless the user asks for more NRF24 work.
+
 Hardware:
 
 - Target module: NRF24L01+ PA+LNA style module with SMA antenna and adapter/breakout.
@@ -447,11 +467,13 @@ python tools/check_display_refresh.py
 python tools/check_environment_feature.py
 python tools/check_level_tool.py
 python tools/check_menu_structure.py
+python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
 python tools/check_voice_memos.py
 python tools/check_wifi_scroll.py
+python tools/check_xiao_nrf24_node.py
 ```
 
 Known build warning:

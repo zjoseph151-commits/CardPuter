@@ -1,8 +1,9 @@
-from pathlib import Path
 import re
 
+from firmware_source import firmware_source_text
 
-SOURCE = Path("src/main.cpp").read_text()
+
+SOURCE = firmware_source_text()
 threshold_match = re.search(r"CHARGING_TREND_THRESHOLD_MV = (\d+)", SOURCE)
 assert threshold_match, "Missing CHARGING_TREND_THRESHOLD_MV"
 CHARGING_TREND_THRESHOLD_MV = int(threshold_match.group(1))

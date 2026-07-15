@@ -1,8 +1,9 @@
-from pathlib import Path
 import re
 
+from firmware_source import firmware_source_text
 
-SOURCE = Path("src/main.cpp").read_text()
+
+SOURCE = firmware_source_text()
 
 
 def function_body(name):
