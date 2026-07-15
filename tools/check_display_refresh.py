@@ -30,6 +30,7 @@ def test_dynamic_screens_do_not_force_full_redraw():
         "showBatteryInfo",
         "showSystemInfo",
         "showEnvironment",
+        "showRfScanner",
         "showLevelTool",
     )
 

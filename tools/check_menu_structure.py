@@ -12,6 +12,7 @@ def test_scoober_menu_structure():
     assert '"Saved WiFi"' in SOURCE
     assert '"Voice Memos"' in SOURCE
     assert '"Environment"' in SOURCE
+    assert '"RF Scan"' in SOURCE
     assert '"Level"' in SOURCE
 
     removed_labels = (

@@ -23,6 +23,7 @@ python tools/check_display_refresh.py
 python tools/check_environment_feature.py
 python tools/check_level_tool.py
 python tools/check_menu_structure.py
+python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
@@ -107,6 +108,7 @@ Libraries in [platformio.ini](platformio.ini):
 
 - `m5stack/M5Cardputer`
 - `m5stack/M5Unit-ENV`
+- `nrf24/RF24@^1.6.1`
 - `z3t0/IRremote@^4.7.1`
 
 Arduino/core libraries used by the firmware:
@@ -114,6 +116,7 @@ Arduino/core libraries used by the firmware:
 - `M5Cardputer.h`
 - `M5UnitENV.h`
 - `Preferences.h`
+- `RF24.h`
 - `SPI.h`
 - `SD.h`
 - `Wire.h`
@@ -136,17 +139,25 @@ Important build note:
 |-- platformio.ini
 |-- src/
 |   `-- main.cpp
+|-- nodes/
+|   `-- xiao_nrf24_oled/
+|       |-- README.md
+|       |-- platformio.ini
+|       `-- src/
+|           `-- main.cpp
 |-- tools/
 |   |-- check_battery_trend.py
 |   |-- check_display_refresh.py
 |   |-- check_environment_feature.py
 |   |-- check_level_tool.py
 |   |-- check_menu_structure.py
+|   |-- check_nrf24_feature.py
 |   |-- check_oled_test.py
 |   |-- check_power_status.py
 |   |-- check_saved_wifi.py
 |   |-- check_voice_memos.py
-|   `-- check_wifi_scroll.py
+|   |-- check_wifi_scroll.py
+|   `-- check_xiao_nrf24_node.py
 `-- docs/
     `-- superpowers/
         `-- plans/
@@ -160,6 +171,7 @@ File responsibilities:
 
 - [src/main.cpp](src/main.cpp): all firmware code currently lives here. It contains setup, loop, screen state machine, UI rendering, input handling, Wi-Fi scan/saved SSID logic, voice memo logic, Environment sensor logic, battery/system screens, and level tool.
 - [platformio.ini](platformio.ini): board/framework/library configuration.
+- [nodes/xiao_nrf24_oled](nodes/xiao_nrf24_oled): separate PlatformIO project for the XIAO ESP32-C3 NRF24/OLED proof node.
 - [tools/](tools): lightweight Python guard scripts. These are not full unit tests, but they catch accidental removal of important behavior and design decisions.
 - [docs/superpowers/plans/](docs/superpowers/plans): implementation plan history for completed features.
 - [notes.md](notes.md): deeper technical notes, lessons learned, and reasoning.
@@ -177,7 +189,8 @@ Menu items:
 4. Saved WiFi
 5. Voice Memos
 6. Environment
-7. Level
+7. RF Scan
+8. Level
 
 Navigation:
 
@@ -337,6 +350,110 @@ ENV wiring:
   - SDA -> Grove SDA
   - SCL -> Grove SCL
 
+### RF Scan
+
+Behavior:
+
+- Adds an RF channel scanner using the Arduino `RF24` library and the NRF24L01 module.
+- Uses the Cardputer-Adv EXT header SPI mapping.
+- Initializes the radio when the screen opens.
+- Shows whether the radio was detected on SPI.
+- Sweeps channels `0-125`.
+- Takes `RF_SCAN_SAMPLE_COUNT` samples per channel using `testRPD()` / `testCarrier()`.
+- Shows a bar graph of activity per channel.
+- Highlights the quietest channels in green and lists them as `Quiet`.
+- Shows the selected channel and activity score as `Act:n/5`.
+- Press `R` or OK/Enter to rescan.
+- Press `,` / `;` and `.` / `/` to move the selected channel marker.
+- If the radio is missing or wired incorrectly, the screen shows a status message and the firmware remains usable.
+
+RF Scan constants:
+
+- CE: `G4`
+- CSN: `G5`
+- SCK: `G40`
+- MOSI: `G14`
+- MISO: `G39`
+- SPI frequency: `NRF24_SPI_FREQUENCY = 4000000`
+- Channel: `NRF24_CHANNEL = 76`
+- Payload size: `NRF24_PAYLOAD_SIZE = 32`
+- Data rate: `RF24_250KBPS`
+- PA level: `RF24_PA_LOW`
+- Scan channels: `RF_SCAN_CHANNEL_COUNT = 126`
+- Samples per channel: `RF_SCAN_SAMPLE_COUNT = 5`
+- Quiet channel count: `RF_SCAN_QUIET_COUNT = 5`
+- Dwell time per sample: `RF_SCAN_DWELL_MS = 2`
+
+NRF24 wiring:
+
+- Wire the NRF24L01 module through its adapter/breakout according to the adapter's power requirements.
+- Connect radio logic to the Cardputer-Adv EXT header:
+  - CE -> `G4`
+  - CSN -> `G5`
+  - SCK -> `G40`
+  - MOSI -> `G14`
+  - MISO -> `G39`
+  - GND -> GND
+- The EXT SPI pins are shared with the microSD bus. The firmware holds microSD CS `G12` high before initializing NRF24 and uses NRF24 CSN `G5` as the radio chip-select.
+- Keep the ENV III on Grove `G2/G1`; do not move NRF24 onto the Grove I2C pins.
+
+### Archived XIAO NRF24 OLED Node
+
+The second proof node lives in [nodes/xiao_nrf24_oled](nodes/xiao_nrf24_oled).
+
+This node is kept for future investigation, but it is no longer the active Cardputer feature.
+Hardware testing showed:
+
+- Cardputer pings reached the XIAO node.
+- XIAO `TX` and `OK` counts increased and `F` stayed at 0.
+- Cardputer did not receive `XIAO beacon N` or `XIAO ack N`.
+- Cardputer RF RPD/carrier counters moved during ping tests, but valid packets did not decode.
+- The likely next bench steps are swapping NRF24 modules, improving PA/LNA module power, adding a capacitor near the radio, or using a known-good third node.
+
+Hardware:
+
+- Seeed Studio XIAO ESP32-C3
+- Same style NRF24L01+ PA+LNA module and adapter/breakout
+- 0.96 inch SSD1306 128x64 I2C OLED
+
+XIAO OLED wiring:
+
+- SDA -> XIAO GPIO6 / SDA
+- SCL -> XIAO GPIO7 / SCL
+- VCC -> 3V3 or the OLED module's required VCC
+- GND -> GND
+
+XIAO NRF24 wiring:
+
+- CE -> XIAO D7 / GPIO20
+- CSN -> XIAO D8 / GPIO8
+- SCK -> XIAO D9 / GPIO9
+- MOSI -> XIAO D10 / GPIO10
+- MISO -> XIAO D6 / GPIO21
+- GND -> GND
+- VCC -> the NRF24 adapter/breakout's required VCC
+
+XIAO node behavior:
+
+- Uses the same shared address as the Cardputer: `SCBR1`.
+- Shows TX attempts, TX OK/fail counts, RX pipe, FIFO state, and last packet text on the SSD1306 display.
+- Sends a `XIAO beacon N` packet about four times per second.
+- Uses `RF24_PA_MIN` on the XIAO side to reduce PA/LNA transmit current while testing close range.
+- Replies to Cardputer pings with three `XIAO ack N` packets.
+- Waits briefly before replying so the Cardputer has time to return to listen mode.
+
+Build the XIAO node from the repo root:
+
+```sh
+python -m platformio run -d nodes/xiao_nrf24_oled
+```
+
+Upload the XIAO node from the repo root:
+
+```sh
+python -m platformio run -d nodes/xiao_nrf24_oled --target upload
+```
+
 ### Level
 
 Behavior:
@@ -363,6 +480,11 @@ Known pins used by current firmware:
 | microSD MISO | G39 | Used by Voice Memos |
 | microSD MOSI | G14 | Used by Voice Memos |
 | microSD CS | G12 | Used by Voice Memos |
+| NRF24 SCK | G40 | Shared EXT SPI line |
+| NRF24 MISO | G39 | Shared EXT SPI line |
+| NRF24 MOSI | G14 | Shared EXT SPI line |
+| NRF24 CSN | G5 | Dedicated NRF24 chip-select |
+| NRF24 CE | G4 | Dedicated NRF24 chip-enable |
 | ENV III SDA | G2 / Grove SDA | External Grove I2C |
 | ENV III SCL | G1 / Grove SCL | External Grove I2C |
 | Internal Cardputer I2C | G8/G9 | Do not use directly for external I2C modules |
@@ -391,6 +513,7 @@ Current active communication paths:
   - Internal I2C is used by Cardputer hardware through M5 libraries.
 - **SPI**
   - Used for microSD access.
+  - Used by the RF Scan feature on the Cardputer-Adv EXT SPI pins.
 - **ESP-NOW**
   - Not implemented.
   - The earlier RC controller placeholder was removed because the user decided this Cardputer project is not the RC controller.
@@ -583,6 +706,7 @@ Serial output includes:
 - Voice memo record/play/delete events
 - Environment sensor status and readings
 - Environment log start/stop events
+- RF Scan / NRF24 init and detection events
 
 ## Important Commands And Scripts
 
@@ -592,10 +716,22 @@ Build:
 python -m platformio run
 ```
 
+Build XIAO NRF24 OLED node:
+
+```sh
+python -m platformio run -d nodes/xiao_nrf24_oled
+```
+
 Upload:
 
 ```sh
 python -m platformio run --target upload
+```
+
+Upload XIAO NRF24 OLED node:
+
+```sh
+python -m platformio run -d nodes/xiao_nrf24_oled --target upload
 ```
 
 Size:
@@ -612,17 +748,19 @@ python tools/check_display_refresh.py
 python tools/check_environment_feature.py
 python tools/check_level_tool.py
 python tools/check_menu_structure.py
+python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
 python tools/check_voice_memos.py
 python tools/check_wifi_scroll.py
+python tools/check_xiao_nrf24_node.py
 ```
 
 Search code quickly:
 
 ```sh
-rg "Environment|Voice Memos|Battery|WiFi" src tools README.md notes.md todo.md
+rg "Environment|Voice Memos|Battery|WiFi|RF Scan|NRF24" src tools README.md notes.md todo.md
 ```
 
 ## Firmware Test Checklist
@@ -647,6 +785,9 @@ After upload:
 - Environment shows a not-found/retry message when ENV III is disconnected.
 - Environment uses `L to name and start logging`; OK/Enter starts logging and Backspace deletes characters while naming.
 - Environment writes `/env/env001.csv` or named files such as `/env/backyard001.csv` to microSD.
+- RF Scan opens, shows radio detected/not found, sweeps channels `0-125`, and draws a bar graph.
+- RF Scan lists quiet channels and lets `R` or OK/Enter rescan.
+- RF Scan lets `,` / `;` and `.` / `/` move the selected channel marker.
 - Level shows a moving dot and center crosshair using the Cardputer Adv IMU.
 
 ## Assumptions And Constraints

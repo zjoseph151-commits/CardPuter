@@ -23,6 +23,7 @@ The active menu is defined in `MENU_ITEMS`:
 {"Saved WiFi", Screen::SavedWifi}
 {"Voice Memos", Screen::VoiceMemos}
 {"Environment", Screen::Environment}
+{"RF Scan", Screen::RfScanner}
 {"Level", Screen::LevelTool}
 ```
 
@@ -51,6 +52,7 @@ Feature-specific keys:
 - WiFi Scan: `R` rescans, OK saves selected network name
 - Saved WiFi: `D` deletes selected saved SSID after confirmation
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
+- RF Scan: `R` rescans, OK rescans, `,` / `;` and `.` / `/` move the channel marker
 
 Do not re-add the old footer text inside every feature. The user asked to remove it.
 
@@ -73,6 +75,7 @@ Dynamic screens that should avoid full header redraw:
 - Battery
 - System
 - Environment
+- RF Scan
 - Level
 
 ## Battery And Charging Notes
@@ -236,6 +239,106 @@ Manual wiring if not using Grove connector:
 Guard:
 
 - `tools/check_environment_feature.py`
+
+## RF Scan Notes
+
+The active NRF24L01 feature is now an RF channel scanner. The earlier Cardputer/XIAO send-receive proof is retired for now and documented below.
+
+Hardware:
+
+- Target module: NRF24L01+ PA+LNA style module with SMA antenna and adapter/breakout.
+- Uses the Cardputer-Adv EXT header SPI pins from the official pin map.
+- Uses shared SPI with microSD:
+  - SCK: G40
+  - MOSI: G14
+  - MISO: G39
+- Dedicated NRF24 control pins:
+  - CE: G4
+  - CSN: G5
+- The firmware holds microSD CS G12 high before initializing NRF24.
+- Keep ENV III on Grove G2/G1.
+- Do not use internal/shared I2C G8/G9 for this module.
+
+Firmware:
+
+- Dependency: `nrf24/RF24@^1.6.1`
+- Include: `RF24.h`
+- Screen: `Screen::RfScanner`
+- Menu label: `RF Scan`
+- Helper functions:
+  - `showRfScanner()`
+  - `initNrf24Radio()`
+  - `scanRfChannels()`
+  - `renderRfScanner()`
+  - `drawRfScanGraph()`
+  - `updateQuietRfChannels()`
+  - `moveRfScanSelection()`
+  - `powerDownNrf24Radio()`
+- Scan range: channels 0-125
+- Samples per channel: `RF_SCAN_SAMPLE_COUNT`
+- Dwell per sample: `RF_SCAN_DWELL_MS`
+- Data rate: `RF24_250KBPS`
+- PA level: `RF24_PA_LOW`
+
+Behavior:
+
+- Entering the screen initializes the radio.
+- Missing or miswired hardware shows `Not found`, `Begin failed.`, or `No radio on SPI.` without breaking the firmware.
+- The scanner sweeps channels 0-125.
+- Each channel is sampled with `testRPD()` and `testCarrier()`.
+- The screen shows a per-channel bar graph.
+- The quietest spaced channels are highlighted in green and listed as `Quiet`; these are the suggested quiet channels for future NRF24 projects.
+- `R` or OK/Enter rescans.
+- `,` / `;` and `.` / `/` move the selected channel marker.
+- The selected channel line shows `Act:n/5`, where lower is quieter.
+
+Guard:
+
+- `tools/check_nrf24_feature.py`
+
+## Retired XIAO Two-Node Findings
+
+The XIAO proof node is still in the repo for future investigation, but it is no longer the active Cardputer feature.
+
+Observed behavior:
+
+- Cardputer pings reached the XIAO node.
+- XIAO `TX` and `OK` increased, and `F` stayed at 0.
+- Cardputer did not receive `XIAO beacon N` or `XIAO ack N`.
+- Cardputer RF RPD/carrier counters moved during ping tests, but valid packets did not decode.
+- This points away from an application protocol issue and toward module power, PA/LNA behavior, receiver sensitivity, antenna/module mismatch, or a one-way hardware issue.
+
+Future bench steps if we revisit it:
+
+- Swap the NRF24 modules between Cardputer and XIAO.
+- Power the XIAO NRF24 adapter from a stable external supply with a common ground.
+- Add a local capacitor near the NRF24 adapter power pins.
+- Try a known-good third NRF24 node.
+- Compare PA/LNA modules against basic non-PA NRF24 modules.
+
+XIAO test node:
+
+- Location: `nodes/xiao_nrf24_oled`
+- Board: `seeed_xiao_esp32c3`
+- Uses a separate PlatformIO project so it can build/upload independently from the Cardputer firmware.
+- OLED: SSD1306 128x64 over I2C, SDA G6, SCL G7.
+- NRF24 SPI:
+  - SCK: D9 / G9
+  - MISO: D6 / G21
+  - MOSI: G10
+  - CE: D7 / G20
+  - CSN: D8 / G8
+- XIAO uses the same shared `SCBR1` address as the Cardputer.
+- XIAO sends `XIAO beacon N` about four times per second.
+- XIAO uses `RF24_PA_MIN` during this proof test to reduce transmit current draw from the PA/LNA module.
+- XIAO OLED separates TX OK/fail counts from TX attempts and shows the last RX pipe/FIFO diagnostics.
+- XIAO replies to received Cardputer packets with three `XIAO ack N` packets.
+- XIAO waits `REPLY_DELAY_MS = 200` before replying so the Cardputer is back in listen mode.
+- XIAO OLED shows radio status, TX/RX counters, and last packet text.
+
+Guard:
+
+- `tools/check_xiao_nrf24_node.py`
 
 ## Level Tool Notes
 

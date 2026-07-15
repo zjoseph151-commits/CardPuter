@@ -21,22 +21,25 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - CSN/chip-select
   - CE
   - optional IRQ if needed later
+- Treat the EXT SPI pins as shared with microSD:
+  - shared SPI: G40 SCK, G39 MISO, G14 MOSI
+  - microSD CS: G12
+  - NRF24 CSN/chip-select: G5
 - Avoid known active or risky pins:
-  - SD card pins: G40 SCK, G39 MISO, G14 MOSI, G12 CS
+  - do not reuse microSD CS G12 as NRF24 CSN
   - ENV III Grove I2C pins: G2 SDA, G1 SCL
   - internal/shared I2C pins G8/G9
 - Decide whether NRF24L01 should use a separate SPI bus or share an SPI bus safely with a dedicated CSN pin.
-- Prefer the Arduino `RF24` library if it builds cleanly with ESP32-S3 / PlatformIO.
-- First firmware milestone should be a simple `NRF24` diagnostics feature:
+- Current firmware milestone uses the Arduino `RF24` library and a simple RF channel scanner:
   - initialize radio
   - show wiring/config status
-  - show channel, data rate, PA level, and address
-  - send a test packet
-  - listen for a test packet
-  - show packet counters and last packet text
+  - Sweep channels 0-125
+  - show a per-channel activity bar graph
+  - highlight quiet channels for future NRF24 projects
+  - allow manual rescan
 - Keep the first implementation graceful if the module is missing or wiring is wrong.
 - Add local guard scripts for menu integration and NRF feature structure before hardware testing.
-- A second NRF24L01 node will be needed to fully prove send/receive behavior.
+- The XIAO ESP32-C3 OLED send/receive proof is retired for now after asymmetric behavior could not be resolved locally.
 
 ## Priority 4: Project Structure Cleanup
 
@@ -106,3 +109,8 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Added optional Environment CSV logging to microSD with one new `/env/envNNN.csv` file per session.
 - Environment CSV columns: uptime seconds, temperature C, temperature F, humidity percent, pressure hPa, altitude m.
 - Added Environment log naming before start, `L` start/stop logging control, log file/sample display, and graceful SD-missing behavior.
+- Added first-pass NRF24 diagnostics feature with RF24 dependency, EXT shared SPI pin plan, graceful missing-radio status, manual test transmit, passive receive counter, and local guard script.
+- Added XIAO ESP32-C3 NRF24/OLED second-node PlatformIO project with `CARD ping N` / `XIAO ack N` proof protocol.
+- Tuned NRF24 proof firmware after hardware testing showed payloads could arrive even when RF24 hardware ACK was missed: switched to 250 kbps, disabled RF hardware ACK for proof mode, simplified to shared `SCBR1` address, added XIAO beacons, added Cardputer RPD/carrier counters, lowered XIAO PA for close-range testing, made the XIAO send repeated delayed replies, and added TX success/failure plus RX pipe/FIFO diagnostics.
+- Retired the active XIAO two-node proof after testing showed Cardputer-to-XIAO worked, XIAO TX/OK increased with no failures, but Cardputer did not decode XIAO beacons or replies.
+- Replaced the active NRF24 diagnostics screen with an RF channel scanner that sweeps 0-125, draws a bar graph, and highlights quiet channels.
