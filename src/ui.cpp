@@ -49,7 +49,7 @@ void setScreen(Screen screen) {
       renderSavedWifiDeleteResult();
       break;
     case Screen::VoiceMemos:
-      drawScreenFrame("Voice Memos");
+      drawScreenFrame("Voice Memos (R record OK play)");
       showVoiceMemos();
       break;
     case Screen::VoiceMemoDeleteConfirm:
@@ -61,7 +61,7 @@ void setScreen(Screen screen) {
       renderVoiceMemoDeleteResult();
       break;
     case Screen::Environment:
-      drawScreenFrame("Environment");
+      drawScreenFrame("Environment (ENV III Unit)");
       initEnvironmentSensor();
       showEnvironment();
       break;

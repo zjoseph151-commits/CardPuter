@@ -144,6 +144,18 @@ Current rules:
 - Saved WiFi stores only SSID names.
 - Saved names survive reboot through Preferences/NVS.
 
+Approved future credential strategy:
+
+- Use a microSD file at `/config/wifi.txt`.
+- Planned format:
+  - `ssid=YourNetworkName`
+  - `password=YourNetworkPassword`
+- Do not hardcode credentials in source code.
+- Do not store Wi-Fi passwords in Preferences/NVS.
+- Do not commit real `wifi.txt` files; `.gitignore` excludes `/config/wifi.txt` and `/wifi.txt` for accidental local copies.
+- Add `WiFi.begin` only when implementing an intentional connect screen/helper.
+- Future connection attempts should show status, use a timeout, handle missing SD/config gracefully, and return safely to the menu.
+
 Preferences namespace:
 
 - `scoober_wifi`
@@ -164,6 +176,7 @@ Guards:
 
 - `tools/check_wifi_scroll.py`
 - `tools/check_saved_wifi.py`
+- `tools/check_wifi_credentials_strategy.py`
 
 ## Voice Memo Notes
 
@@ -471,6 +484,7 @@ python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
+python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py
 python tools/check_wifi_scroll.py
 python tools/check_xiao_nrf24_node.py

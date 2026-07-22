@@ -33,14 +33,16 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 ## Priority 5: Saved Wi-Fi And Networking Prep
 
-- Keep saved Wi-Fi as SSID-only until user approves credentials.
-- Design a secure credential strategy before adding any `WiFi.begin` calls.
-- Possible credential approaches:
-  - on-device entry screen
-  - SD config file excluded from git
-  - temporary serial command setup
-  - captive portal setup
-- Add clear docs before any credential implementation.
+- Keep saved Wi-Fi as SSID-only unless the user explicitly asks to change it.
+- Approved credential strategy: read Wi-Fi credentials from microSD `/config/wifi.txt`.
+- Planned config format:
+  - `ssid=YourNetworkName`
+  - `password=YourNetworkPassword`
+- Do not hardcode credentials in source code.
+- Do not store Wi-Fi passwords in Preferences/NVS.
+- Do not commit real `wifi.txt` files; `.gitignore` excludes `/config/wifi.txt` and `/wifi.txt` for accidental local copies.
+- Do not add `WiFi.begin` until implementing an intentional connect screen/helper.
+- Future connect behavior should show clear status, timeout gracefully, handle missing SD/config gracefully, and return safely to the menu.
 
 ## Priority 6: Raspberry Pi Command Center Planning
 
@@ -95,3 +97,5 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User confirmed RF Scan is working fine on Cardputer hardware on 2026-07-15.
 - Split the Cardputer firmware out of monolithic `src/main.cpp` into shared app state plus feature modules while keeping guards and PlatformIO build passing.
 - Main menu header now reads `Scoober (Use arrows, OK to select)` and menu rows were shifted up to fit cleanly.
+- Voice Memos and Environment titles now carry their first-line context, freeing content space for feature data.
+- Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.

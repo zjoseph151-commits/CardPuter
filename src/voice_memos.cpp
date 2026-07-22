@@ -148,14 +148,15 @@ void renderVoiceMemos() {
     return;
   }
 
-  if (voiceMemoStatus.length() > 0) {
+  const bool showStatus = voiceMemoStatus.length() > 0;
+  if (showStatus) {
     contentCanvas.println(voiceMemoStatus.substring(0, 28));
-  } else {
-    contentCanvas.println("R record  OK play");
   }
 
   if (voiceMemoCount <= 0) {
-    contentCanvas.println();
+    if (showStatus) {
+      contentCanvas.println();
+    }
     contentCanvas.println("No memos yet.");
     commitContentDraw();
     return;
@@ -164,6 +165,7 @@ void renderVoiceMemos() {
   contentCanvas.printf("%d memo(s) %d/%d D del\n", voiceMemoCount,
                        selectedVoiceMemoIndex + 1, voiceMemoCount);
 
+  const int listTop = showStatus ? 38 : 26;
   const int shown = min(voiceMemoCount, VOICE_MEMO_VISIBLE_ROWS);
   for (int row = 0; row < shown; ++row) {
     const int memoIndex = voiceMemoScrollOffset + row;
@@ -172,7 +174,7 @@ void renderVoiceMemos() {
     }
 
     const bool selected = memoIndex == selectedVoiceMemoIndex;
-    const int rowY = 38 + row * 16;
+    const int rowY = listTop + row * 16;
 
     if (selected) {
       contentCanvas.fillRect(4, rowY - 1, contentCanvas.width() - 8, 15, DARKGREEN);

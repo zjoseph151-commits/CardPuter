@@ -8,3 +8,5 @@
 *.elf
 *.map
 __pycache__/
+/config/wifi.txt
+/wifi.txt

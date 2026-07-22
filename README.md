@@ -12,7 +12,7 @@ Start here if this repository is opened in a fresh Codex chat.
 
 1. Read this file, then read [notes.md](notes.md) and [todo.md](todo.md).
 2. Do not assume unused pins are safe. **Avoid using G8/G9 directly** for external I2C hardware on the Cardputer Adv; those pins share the internal I2C bus and caused keyboard failures during OLED testing.
-3. Do not store Wi-Fi credentials or connect to Wi-Fi unless the user explicitly asks for that milestone.
+3. Priority #5 credential strategy is microSD `/config/wifi.txt`, but connection firmware is not implemented yet. Do not hardcode credentials or add `WiFi.begin` except in that intentional milestone.
 4. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
 5. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
 6. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
@@ -29,8 +29,10 @@ python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
+python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py
 python tools/check_wifi_scroll.py
+python tools/check_xiao_nrf24_node.py
 python -m platformio run
 ```
 
@@ -51,6 +53,7 @@ Current state:
 - Uses microSD for voice memo storage.
 - RF Scan works with the NRF24L01 module and shows quiet channels for future NRF24 projects.
 - Has no Wi-Fi credentials and makes no Wi-Fi connection attempts.
+- Has an approved future Wi-Fi credential strategy: read `/config/wifi.txt` from microSD, never from source code or NVS.
 - Has no active ESP-NOW code.
 - Has no active external OLED display code.
 
@@ -169,6 +172,7 @@ Important build note:
 |   |-- check_oled_test.py
 |   |-- check_power_status.py
 |   |-- check_saved_wifi.py
+|   |-- check_wifi_credentials_strategy.py
 |   |-- check_voice_memos.py
 |   |-- check_wifi_scroll.py
 |   |-- firmware_source.py
@@ -295,6 +299,34 @@ Behavior:
 - `D` opens delete confirmation for the selected saved SSID.
 
 This feature intentionally does not store passwords and intentionally does not call `WiFi.begin`.
+
+### Planned Wi-Fi Credential Strategy
+
+The approved Priority #5 credential strategy is to read Wi-Fi credentials from a microSD card file when a future connect feature is implemented.
+
+Planned file path on the Cardputer microSD card:
+
+```text
+/config/wifi.txt
+```
+
+Planned file format:
+
+```text
+ssid=YourNetworkName
+password=YourNetworkPassword
+```
+
+Rules for the future connect feature:
+
+- Do not hardcode credentials in source code.
+- Do not store Wi-Fi passwords in Preferences/NVS.
+- Do not commit real `wifi.txt` files. This repo ignores `/config/wifi.txt` and `/wifi.txt` in case local copies are created while testing.
+- Keep the existing Saved WiFi feature as SSID-only unless the user explicitly asks to change it.
+- Add `WiFi.begin` only as part of an intentional connection screen or connection helper.
+- Connection attempts should show clear status, use a timeout, handle missing SD/config gracefully, and return safely to the menu.
+
+This strategy is documented, but the firmware still does not connect to Wi-Fi yet.
 
 ### Voice Memos
 
@@ -533,6 +565,7 @@ Current active communication paths:
   - No credentials.
   - No Wi-Fi connection attempts.
   - No HTTP/MQTT/websocket/network command center yet.
+  - Approved future credential source: microSD `/config/wifi.txt`.
 - **I2C**
   - Grove external I2C is used by ENV III on G2/G1.
   - Internal I2C is used by Cardputer hardware through M5 libraries.
@@ -552,7 +585,7 @@ Current active communication paths:
 Future communication direction:
 
 - Raspberry Pi command center ideas are still future work.
-- If Wi-Fi networking is added later, keep secrets out of source code. Prefer an on-device entry screen, SD config, captive portal, or build-time ignored config file.
+- If Wi-Fi networking is added later, keep secrets out of source code. Use the approved microSD `/config/wifi.txt` strategy first unless the user changes direction.
 
 ## Power Architecture And Voltage Details
 
@@ -661,7 +694,7 @@ Good near-term improvements:
 1. Add timestamps if a reliable time source is introduced.
 2. Add a simple settings screen for units, refresh rate, and maybe Fahrenheit-only display.
 3. Add a file browser or memo management improvements for Voice Memos.
-4. Add a safe config pattern for future Wi-Fi credentials without hardcoding secrets.
+4. Implement a Wi-Fi connection screen using the approved microSD `/config/wifi.txt` strategy.
 
 Future bigger milestones:
 
@@ -774,6 +807,7 @@ python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
+python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py
 python tools/check_wifi_scroll.py
 python tools/check_xiao_nrf24_node.py
@@ -801,6 +835,7 @@ After upload:
 - WiFi Scan opens save confirmation with OK/Enter and rescans with `R`.
 - Saved WiFi shows saved SSID names after reboot or power-off.
 - Saved WiFi deletes selected names with `D`.
+- Wi-Fi still makes no connection attempt until the future SD-backed connect screen is implemented.
 - Voice Memos records WAV files to microSD.
 - Voice Memos lists saved memos, plays with OK/Enter, and deletes selected memos with `D`.
 - Environment shows live temperature, humidity, and pressure when ENV III is connected.
@@ -820,6 +855,7 @@ After upload:
 - Do not add Raspberry Pi networking until the user asks for that milestone.
 - Do not hardcode Wi-Fi credentials.
 - Do not store Wi-Fi passwords in Preferences/NVS.
+- Future Wi-Fi credentials should come from microSD `/config/wifi.txt`; do not commit real `wifi.txt` files.
 - Keep external I2C on Grove unless a hardware expansion plan is explicit.
 - Preserve existing working behavior unless the user asks for a change.
 - The current codebase is intentionally pragmatic; do not over-refactor unless it helps the current task.

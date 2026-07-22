@@ -8,7 +8,6 @@ void showEnvironment() {
   }
 
   beginContentDraw();
-  contentCanvas.println("ENV III Unit");
   if (envLogging) {
     contentCanvas.printf("Log:%s #%lu\n", envLogFileName.c_str(), envLogSampleCount);
     contentCanvas.println("L stop log");
