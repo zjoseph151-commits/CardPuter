@@ -12,7 +12,7 @@ Start here if this repository is opened in a fresh Codex chat.
 
 1. Read this file, then read [notes.md](notes.md) and [todo.md](todo.md).
 2. Do not assume unused pins are safe. **Avoid using G8/G9 directly** for external I2C hardware on the Cardputer Adv; those pins share the internal I2C bus and caused keyboard failures during OLED testing.
-3. Priority #5 credential strategy is microSD `/config/wifi.txt`, but connection firmware is not implemented yet. Do not hardcode credentials or add `WiFi.begin` except in that intentional milestone.
+3. Priority #5 now includes a WiFi Connect screen that reads credentials from microSD `/config/wifi.txt`. Do not hardcode credentials, and keep `WiFi.begin` limited to that intentional flow.
 4. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
 5. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
 6. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
@@ -52,8 +52,7 @@ Current state:
 - Uses the Grove I2C port for the M5Stack ENV III Unit.
 - Uses microSD for voice memo storage.
 - RF Scan works with the NRF24L01 module and shows quiet channels for future NRF24 projects.
-- Has no Wi-Fi credentials and makes no Wi-Fi connection attempts.
-- Has an approved future Wi-Fi credential strategy: read `/config/wifi.txt` from microSD, never from source code or NVS.
+- Has a WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has no active ESP-NOW code.
 - Has no active external OLED display code.
 
@@ -155,6 +154,7 @@ Important build note:
 |   |-- rf_scanner.cpp
 |   |-- ui.cpp
 |   |-- voice_memos.cpp
+|   |-- wifi_connect.cpp
 |   `-- wifi_screens.cpp
 |-- nodes/
 |   `-- xiao_nrf24_oled/
@@ -194,6 +194,7 @@ File responsibilities:
 - [src/ui.cpp](src/ui.cpp): screen routing, header/content drawing helpers, and main menu rendering.
 - [src/input.cpp](src/input.cpp): keyboard event dispatch and screen-specific key handling.
 - [src/power_screen.cpp](src/power_screen.cpp): Battery/System screens and battery trend logic.
+- [src/wifi_connect.cpp](src/wifi_connect.cpp): SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - [src/wifi_screens.cpp](src/wifi_screens.cpp): Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
 - [src/voice_memos.cpp](src/voice_memos.cpp): microSD WAV recording, listing, playback, and delete flow.
 - [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
@@ -216,10 +217,11 @@ Menu items:
 2. System
 3. WiFi Scan
 4. Saved WiFi
-5. Voice Memos
-6. Environment
-7. RF Scan
-8. Level
+5. WiFi Connect
+6. Voice Memos
+7. Environment
+8. RF Scan
+9. Level
 
 Navigation:
 
@@ -300,33 +302,40 @@ Behavior:
 
 This feature intentionally does not store passwords and intentionally does not call `WiFi.begin`.
 
-### Planned Wi-Fi Credential Strategy
+### WiFi Connect
 
-The approved Priority #5 credential strategy is to read Wi-Fi credentials from a microSD card file when a future connect feature is implemented.
+Behavior:
 
-Planned file path on the Cardputer microSD card:
+- Reads Wi-Fi credentials from a microSD card file.
+- Does not hardcode credentials in source code.
+- Does not store Wi-Fi passwords in Preferences/NVS.
+- Shows missing SD, missing config, missing SSID, connecting, connected, failed, and disconnected status.
+- Uses a 15 second connection timeout: `WIFI_CONNECT_TIMEOUT_MS = 15000`.
+- Shows the connected IP address when available.
+- OK/Enter retries the connection.
+- `D` disconnects from Wi-Fi.
+
+Credential file path on the Cardputer microSD card:
 
 ```text
 /config/wifi.txt
 ```
 
-Planned file format:
+Credential file format:
 
 ```text
 ssid=YourNetworkName
 password=YourNetworkPassword
 ```
 
-Rules for the future connect feature:
+Rules for the WiFi Connect feature:
 
 - Do not hardcode credentials in source code.
 - Do not store Wi-Fi passwords in Preferences/NVS.
 - Do not commit real `wifi.txt` files. This repo ignores `/config/wifi.txt` and `/wifi.txt` in case local copies are created while testing.
 - Keep the existing Saved WiFi feature as SSID-only unless the user explicitly asks to change it.
-- Add `WiFi.begin` only as part of an intentional connection screen or connection helper.
-- Connection attempts should show clear status, use a timeout, handle missing SD/config gracefully, and return safely to the menu.
-
-This strategy is documented, but the firmware still does not connect to Wi-Fi yet.
+- `WiFi.begin` belongs only in the intentional WiFi Connect flow.
+- Connection attempts show clear status, use a timeout, handle missing SD/config gracefully, and return safely to the menu.
 
 ### Voice Memos
 
@@ -561,11 +570,11 @@ Current active communication paths:
   - Baud: `115200`
   - Used for boot messages, keyboard events, Wi-Fi scan results, voice memo events, and environment readings.
 - **Wi-Fi**
-  - Used only for station-mode scanning.
-  - No credentials.
-  - No Wi-Fi connection attempts.
+  - Used for station-mode scanning.
+  - Can connect through the WiFi Connect screen when `/config/wifi.txt` exists on microSD.
+  - Credentials are not stored in source code or Preferences/NVS.
   - No HTTP/MQTT/websocket/network command center yet.
-  - Approved future credential source: microSD `/config/wifi.txt`.
+  - Credential source: microSD `/config/wifi.txt`.
 - **I2C**
   - Grove external I2C is used by ENV III on G2/G1.
   - Internal I2C is used by Cardputer hardware through M5 libraries.
@@ -585,7 +594,7 @@ Current active communication paths:
 Future communication direction:
 
 - Raspberry Pi command center ideas are still future work.
-- If Wi-Fi networking is added later, keep secrets out of source code. Use the approved microSD `/config/wifi.txt` strategy first unless the user changes direction.
+- Wi-Fi now has a safe connection foundation, but no higher-level networking protocol exists yet.
 
 ## Power Architecture And Voltage Details
 
@@ -694,7 +703,7 @@ Good near-term improvements:
 1. Add timestamps if a reliable time source is introduced.
 2. Add a simple settings screen for units, refresh rate, and maybe Fahrenheit-only display.
 3. Add a file browser or memo management improvements for Voice Memos.
-4. Implement a Wi-Fi connection screen using the approved microSD `/config/wifi.txt` strategy.
+4. Add a lightweight Wi-Fi status/network utility after hardware testing confirms WiFi Connect behaves well.
 
 Future bigger milestones:
 
@@ -835,7 +844,10 @@ After upload:
 - WiFi Scan opens save confirmation with OK/Enter and rescans with `R`.
 - Saved WiFi shows saved SSID names after reboot or power-off.
 - Saved WiFi deletes selected names with `D`.
-- Wi-Fi still makes no connection attempt until the future SD-backed connect screen is implemented.
+- WiFi Connect handles missing `/config/wifi.txt` gracefully.
+- WiFi Connect connects when `/config/wifi.txt` has a valid SSID/password and shows an IP address.
+- WiFi Connect times out and shows failure status for wrong credentials.
+- WiFi Connect disconnects with `D`.
 - Voice Memos records WAV files to microSD.
 - Voice Memos lists saved memos, plays with OK/Enter, and deletes selected memos with `D`.
 - Environment shows live temperature, humidity, and pressure when ENV III is connected.
@@ -855,7 +867,7 @@ After upload:
 - Do not add Raspberry Pi networking until the user asks for that milestone.
 - Do not hardcode Wi-Fi credentials.
 - Do not store Wi-Fi passwords in Preferences/NVS.
-- Future Wi-Fi credentials should come from microSD `/config/wifi.txt`; do not commit real `wifi.txt` files.
+- Wi-Fi credentials should come from microSD `/config/wifi.txt`; do not commit real `wifi.txt` files.
 - Keep external I2C on Grove unless a hardware expansion plan is explicit.
 - Preserve existing working behavior unless the user asks for a change.
 - The current codebase is intentionally pragmatic; do not over-refactor unless it helps the current task.

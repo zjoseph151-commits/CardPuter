@@ -20,6 +20,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/ui.cpp`: screen routing, frame/content drawing helpers, and main menu rendering.
 - `src/input.cpp`: keyboard event dispatch and screen-specific key handling.
 - `src/power_screen.cpp`: Battery/System screens and battery trend logic.
+- `src/wifi_connect.cpp`: SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - `src/wifi_screens.cpp`: Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
@@ -36,6 +37,7 @@ The active menu is defined in `MENU_ITEMS`:
 {"System", Screen::SystemInfo}
 {"WiFi Scan", Screen::WifiScan}
 {"Saved WiFi", Screen::SavedWifi}
+{"WiFi Connect", Screen::WifiConnect}
 {"Voice Memos", Screen::VoiceMemos}
 {"Environment", Screen::Environment}
 {"RF Scan", Screen::RfScanner}
@@ -66,6 +68,7 @@ Feature-specific keys:
 
 - WiFi Scan: `R` rescans, OK saves selected network name
 - Saved WiFi: `D` deletes selected saved SSID after confirmation
+- WiFi Connect: OK retries connection, `D` disconnects
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
 - RF Scan: `R` rescans, OK rescans, `,` / `;` and `.` / `/` move the channel marker
 
@@ -134,27 +137,29 @@ Guard:
 
 ## Wi-Fi Notes
 
-Wi-Fi is scan-only.
+Wi-Fi has scan, SSID-only saved names, and an SD-backed connect screen.
 
 Current rules:
 
-- No credentials.
-- No calls to `WiFi.begin`.
-- No connection attempts.
+- Credentials must come from microSD `/config/wifi.txt`.
+- `WiFi.begin` belongs only in the intentional WiFi Connect flow.
+- No hardcoded credentials.
+- No Wi-Fi passwords in Preferences/NVS.
 - Saved WiFi stores only SSID names.
 - Saved names survive reboot through Preferences/NVS.
 
-Approved future credential strategy:
+Credential strategy:
 
 - Use a microSD file at `/config/wifi.txt`.
-- Planned format:
+- Format:
   - `ssid=YourNetworkName`
   - `password=YourNetworkPassword`
 - Do not hardcode credentials in source code.
 - Do not store Wi-Fi passwords in Preferences/NVS.
 - Do not commit real `wifi.txt` files; `.gitignore` excludes `/config/wifi.txt` and `/wifi.txt` for accidental local copies.
-- Add `WiFi.begin` only when implementing an intentional connect screen/helper.
-- Future connection attempts should show status, use a timeout, handle missing SD/config gracefully, and return safely to the menu.
+- The WiFi Connect screen shows status, uses a 15 second timeout, handles missing SD/config gracefully, and returns safely to the menu.
+- OK/Enter retries the connection; `D` disconnects.
+- Successful connection displays the local IP address.
 
 Preferences namespace:
 

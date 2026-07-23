@@ -48,6 +48,10 @@ void setScreen(Screen screen) {
       drawScreenFrame("Delete WiFi");
       renderSavedWifiDeleteResult();
       break;
+    case Screen::WifiConnect:
+      drawScreenFrame("WiFi Connect");
+      showWifiConnect();
+      break;
     case Screen::VoiceMemos:
       drawScreenFrame("Voice Memos (R record OK play)");
       showVoiceMemos();
@@ -110,7 +114,7 @@ void showMainMenu() {
   drawHeader("Scoober (Use arrows, OK to select)");
 
   for (int i = 0; i < MENU_ITEM_COUNT; ++i) {
-    const int rowY = 30 + (i * 13);
+    const int rowY = 28 + (i * 12);
     const bool selected = i == selectedMenuIndex;
 
     if (selected) {

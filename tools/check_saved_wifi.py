@@ -4,9 +4,11 @@ from firmware_source import firmware_source_text
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
+WIFI_SCREENS = ROOT / "src" / "wifi_screens.cpp"
 
 main = firmware_source_text()
 readme = README.read_text(encoding="utf-8")
+saved_wifi_source = WIFI_SCREENS.read_text(encoding="utf-8")
 
 required_main_tokens = [
     "#include <Preferences.h>",
@@ -33,8 +35,12 @@ required_main_tokens = [
 for token in required_main_tokens:
     assert token in main, f"Missing expected saved WiFi token: {token}"
 
-assert "password" not in main.lower(), "Saved WiFi feature must not store passwords"
-assert "WiFi.begin" not in main, "Saved WiFi feature must not connect to WiFi"
+assert "password" not in saved_wifi_source.lower(), (
+    "Saved WiFi feature must remain SSID-only; credential parsing belongs in WiFi Connect"
+)
+assert "WiFi.begin" not in saved_wifi_source, (
+    "Saved WiFi feature must not connect to WiFi directly"
+)
 
 required_readme_tokens = [
     "Saved WiFi",

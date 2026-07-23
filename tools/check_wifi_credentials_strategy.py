@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 from firmware_source import firmware_source_text
 
@@ -16,23 +17,52 @@ def require_tokens(text, tokens, label):
         assert token in text, f"Missing {label}: {token}"
 
 
-def test_credentials_are_not_in_firmware_yet():
-    forbidden_source_tokens = [
-        "WiFi.begin",
-        "password",
-        "WIFI_PASSWORD",
-        "WIFI_PASS",
-        "wifiPassword",
-        "wifiPass",
+def test_connect_flow_uses_sd_config():
+    required_source_tokens = [
+        'WIFI_CONFIG_PATH = "/config/wifi.txt"',
+        "WIFI_CONNECT_TIMEOUT_MS = 15000",
+        "Screen::WifiConnect",
+        '"WiFi Connect"',
+        "showWifiConnect()",
+        "renderWifiConnect()",
+        "initWifiConfigSd()",
+        "readWifiCredentialsFromSd(",
+        "connectWifiFromConfig()",
+        "disconnectWifi()",
+        "wifiStatusText(",
+        'key == "ssid"',
+        'key == "password"',
+        "WiFi.begin(wifiConnectSsid.c_str(), wifiPassword.c_str())",
+        "WL_CONNECTED",
+        "WiFi.localIP().toString()",
+        "WIFI_CONNECT_TIMEOUT_MS",
+        "OK retry",
+        "D disconnect",
+        "Back menu",
+        "No wifi config.",
+        "Missing SSID.",
     ]
 
-    source_lower = SOURCE.lower()
+    require_tokens(SOURCE, required_source_tokens, "Wi-Fi connect firmware")
+
+
+def test_credentials_are_not_hardcoded():
+    forbidden_source_tokens = [
+        "WIFI_PASSWORD",
+        "WIFI_PASS",
+        "wifiPass =",
+        "password=YourNetworkPassword",
+        "YourNetworkPassword",
+    ]
+
     for token in forbidden_source_tokens:
-        haystack = source_lower if token == "password" else SOURCE
-        assert token not in haystack, (
-            "Wi-Fi credentials/connect code should not be in firmware until the "
-            f"intentional connect milestone: {token}"
-        )
+        assert token not in SOURCE, f"Do not hardcode Wi-Fi credentials: {token}"
+
+    assert not re.search(r"WiFi\.begin\s*\(\s*\"", SOURCE), (
+        "WiFi.begin must use SD-loaded variables, not string literals"
+    )
+    assert 'wifiPrefs.putString("password"' not in SOURCE
+    assert 'wifiPrefs.putString("pass"' not in SOURCE
 
 
 def test_sd_credential_strategy_is_documented():
@@ -63,7 +93,8 @@ def test_local_config_paths_are_ignored():
 
 
 if __name__ == "__main__":
-    test_credentials_are_not_in_firmware_yet()
+    test_connect_flow_uses_sd_config()
+    test_credentials_are_not_hardcoded()
     test_sd_credential_strategy_is_documented()
     test_local_config_paths_are_ignored()
     print("Wi-Fi credential strategy checks passed.")

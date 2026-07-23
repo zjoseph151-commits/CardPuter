@@ -94,6 +94,17 @@ void handleKeyboard() {
     if (keys.enter) {
       setScreen(Screen::SavedWifi);
     }
+  } else if (currentScreen == Screen::WifiConnect) {
+    for (char key : keys.word) {
+      if (key == 'd' || key == 'D') {
+        disconnectWifi();
+      }
+    }
+
+    if (keys.enter) {
+      connectWifiFromConfig();
+      renderWifiConnect();
+    }
   } else if (currentScreen == Screen::VoiceMemos) {
     if (voiceMemoRecording) {
       for (char key : keys.word) {

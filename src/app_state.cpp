@@ -7,6 +7,7 @@ const MenuItem MENU_ITEMS[] = {
     {"System", Screen::SystemInfo},
     {"WiFi Scan", Screen::WifiScan},
     {"Saved WiFi", Screen::SavedWifi},
+    {"WiFi Connect", Screen::WifiConnect},
     {"Voice Memos", Screen::VoiceMemos},
     {"Environment", Screen::Environment},
     {"RF Scan", Screen::RfScanner},
@@ -41,6 +42,9 @@ String pendingDeleteWifiName;
 int pendingDeleteWifiIndex = -1;
 String savedWifiDeleteResultName;
 String savedWifiDeleteResultMessage;
+String wifiConnectStatus = "Not connected.";
+String wifiConnectSsid;
+String wifiConnectIp;
 VoiceMemoFile voiceMemos[MAX_VOICE_MEMOS];
 int voiceMemoCount = 0;
 int selectedVoiceMemoIndex = 0;

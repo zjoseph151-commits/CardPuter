@@ -24,6 +24,9 @@ constexpr int MAX_WIFI_NETWORKS = 40;
 constexpr int WIFI_VISIBLE_ROWS = 5;
 constexpr int MAX_SAVED_WIFI_NAMES = 20;
 constexpr int SAVED_WIFI_VISIBLE_ROWS = 5;
+constexpr const char* WIFI_CONFIG_PATH = "/config/wifi.txt";
+constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 15000;
+constexpr uint32_t WIFI_CONNECT_POLL_MS = 250;
 constexpr int SD_SPI_SCK_PIN = 40;
 constexpr int SD_SPI_MISO_PIN = 39;
 constexpr int SD_SPI_MOSI_PIN = 14;
@@ -76,6 +79,7 @@ enum class Screen {
   SavedWifi,
   SavedWifiDeleteConfirm,
   SavedWifiDeleteResult,
+  WifiConnect,
   VoiceMemos,
   VoiceMemoDeleteConfirm,
   VoiceMemoDeleteResult,
@@ -164,6 +168,9 @@ extern String pendingDeleteWifiName;
 extern int pendingDeleteWifiIndex;
 extern String savedWifiDeleteResultName;
 extern String savedWifiDeleteResultMessage;
+extern String wifiConnectStatus;
+extern String wifiConnectSsid;
+extern String wifiConnectIp;
 extern VoiceMemoFile voiceMemos[MAX_VOICE_MEMOS];
 extern int voiceMemoCount;
 extern int selectedVoiceMemoIndex;
@@ -229,6 +236,8 @@ void renderWifiSaveResult();
 void renderSavedWifiList();
 void renderSavedWifiDeleteConfirm();
 void renderSavedWifiDeleteResult();
+void showWifiConnect();
+void renderWifiConnect();
 void showVoiceMemos();
 void renderVoiceMemos();
 void renderVoiceMemoDeleteConfirm();
@@ -256,6 +265,11 @@ bool savedWifiNameExists(const String& ssid);
 bool saveWifiName(const String& ssid);
 bool deleteSavedWifiName(int savedIndex);
 void moveSavedWifiSelection(int direction);
+bool initWifiConfigSd();
+bool readWifiCredentialsFromSd(String& wifiSsid, String& wifiPassword);
+bool connectWifiFromConfig();
+void disconnectWifi();
+const char* wifiStatusText(wl_status_t status);
 bool initVoiceMemoSd();
 void scanVoiceMemos();
 bool findNextVoiceMemoPath(String& path, String& name);
