@@ -64,5 +64,9 @@ void loop() {
     serviceVoiceMemoRecording();
   }
 
+  if (currentScreen == Screen::PiMonitor) {
+    servicePiMonitor();
+  }
+
   delay(10);
 }

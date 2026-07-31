@@ -8,6 +8,7 @@ const MenuItem MENU_ITEMS[] = {
     {"WiFi Scan", Screen::WifiScan},
     {"Saved WiFi", Screen::SavedWifi},
     {"WiFi Connect", Screen::WifiConnect},
+    {"Pi Monitor", Screen::PiMonitor},
     {"Voice Memos", Screen::VoiceMemos},
     {"Environment", Screen::Environment},
     {"RF Scan", Screen::RfScanner},
@@ -18,8 +19,11 @@ const int MENU_ITEM_COUNT = sizeof(MENU_ITEMS) / sizeof(MENU_ITEMS[0]);
 SHT3X envSht30;
 QMP6988 envQmp6988;
 RF24 nrf24Radio(NRF24_SPI_FREQUENCY);
+WiFiClient piMonitorWifiClient;
+PubSubClient piMonitorMqttClient(piMonitorWifiClient);
 Screen currentScreen = Screen::MainMenu;
 int selectedMenuIndex = 0;
+int menuScrollOffset = 0;
 unsigned long lastSystemRefreshMs = 0;
 unsigned long lastLevelRefreshMs = 0;
 unsigned long lastBatterySampleMs = 0;
@@ -45,6 +49,21 @@ String savedWifiDeleteResultMessage;
 String wifiConnectStatus = "Not connected.";
 String wifiConnectSsid;
 String wifiConnectIp;
+String piMonitorStatus = "Not connected.";
+String piMonitorBrokerHost;
+uint16_t piMonitorBrokerPort = PI_MQTT_DEFAULT_PORT;
+String piMonitorDeviceId = PI_MONITOR_DEFAULT_DEVICE_ID;
+String piMonitorCommandTarget;
+String piMonitorCommandStatus = "No command sent.";
+uint32_t piMonitorCommandCount = 0;
+String piMonitorLastResponseDevice;
+String piMonitorLastResponseSummary;
+uint32_t piMonitorResponseCount = 0;
+bool piMonitorConfigLoaded = false;
+String piMonitorLastTopic;
+String piMonitorLastPayload;
+uint32_t piMonitorMessageCount = 0;
+PiMonitorDevice piMonitorDevices[MAX_PI_MONITOR_DEVICES];
 VoiceMemoFile voiceMemos[MAX_VOICE_MEMOS];
 int voiceMemoCount = 0;
 int selectedVoiceMemoIndex = 0;

@@ -33,6 +33,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 ## Priority 5: Saved Wi-Fi And Networking Prep
 
+- Current Priority #5 milestone is complete enough to move on; user confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.
 - Keep saved Wi-Fi as SSID-only unless the user explicitly asks to change it.
 - Credential strategy: read Wi-Fi credentials from microSD `/config/wifi.txt`.
 - Config format:
@@ -42,19 +43,46 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Do not store Wi-Fi passwords in Preferences/NVS.
 - Do not commit real `wifi.txt` files; `.gitignore` excludes `/config/wifi.txt` and `/wifi.txt` for accidental local copies.
 - `WiFi.begin` is allowed only in the intentional WiFi Connect flow.
-- WiFi Connect should be tested with missing config, wrong password, and correct password.
+- Future networking work should build on this WiFi Connect flow instead of adding a second credential path.
 
 ## Priority 6: Raspberry Pi Command Center Planning
 
-- Define the first Pi integration goal before coding.
-- Decide transport:
-  - Wi-Fi HTTP
-  - Wi-Fi MQTT
-  - WebSocket
-  - USB serial
-  - BLE
-- Decide whether the Cardputer is primarily a dashboard, command launcher, logger, or remote shell front-end.
-- Do not start this until current local utility features are stable.
+- Priority #6 planning started on 2026-07-25.
+- First firmware pass added on 2026-07-27: read-only `Pi Monitor` screen before sending commands.
+- User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
+- First whitelisted `read_now` command publisher added on 2026-07-30.
+- User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
+- Transport decision: Wi-Fi MQTT, because the Raspberry Pi learning repo already uses an MQTT broker/listener and `home/devices/<device>/...` topics.
+- First config file: microSD `/config/pi.txt`.
+- Config format:
+  - `mqtt_host=10.0.0.180`
+  - `mqtt_port=1883`
+  - `device_id=scoober-cardputer`
+  - `command_target=esp32-c3-test`
+- First subscription:
+  - `home/#`
+- First screen behavior:
+  - require Wi-Fi to already be connected through WiFi Connect
+  - show MQTT broker connection status
+  - show message count, last topic/payload, and command response display for incoming `home/#` messages
+  - show a compact device list/status view
+  - update the device list for `home/devices/<device>/<kind>` topics
+  - show response topics such as `home/devices/<device>/responses` on a dedicated `Resp:` line
+  - publish whitelisted `read_now` to `home/devices/<command_target>/commands` with `C`
+  - fail gracefully when Wi-Fi, SD config, or broker connection is missing
+  - keep Backspace return-to-menu behavior
+- Controls:
+  - OK retries MQTT connection
+  - `C` publishes `{"command":"read_now"}` to the configured command target
+  - `R` clears the device list and reconnects
+  - `D` disconnects MQTT
+- Hardware test checklist:
+  - MQTT connect and incoming message display confirmed on hardware on 2026-07-29
+  - `read_now` command publishing confirmed on hardware on 2026-07-30
+  - missing `/config/pi.txt`, Wi-Fi disconnected, and wrong broker IP/port still worth spot-checking after future edits
+- Do not implement direct shell control, remote command execution, Pi admin actions, arbitrary command entry, or risky commands.
+- Next Priority #6 test step should verify the new `Resp:` command response display on hardware.
+- Later command actions can add target selection and `set_interval` after response visibility feels clear on hardware.
 
 ## Priority 7: External Display Revisit
 
@@ -100,3 +128,10 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Voice Memos and Environment titles now carry their first-line context, freeing content space for feature data.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
+- User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.
+- Planned Priority #6 as a Wi-Fi MQTT Raspberry Pi command center starting with a read-only Pi Monitor.
+- Added first-pass Pi Monitor screen using microSD `/config/pi.txt`, read-only MQTT monitoring, compact device list, graceful missing-config/Wi-Fi/broker behavior, retry, clear/reconnect, and disconnect controls.
+- User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
+- Added first whitelisted Pi Monitor command publisher: `C` sends `read_now` to `home/devices/<command_target>/commands`.
+- User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
+- Added dedicated Pi Monitor `Resp:` display for device response topics.

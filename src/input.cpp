@@ -105,6 +105,23 @@ void handleKeyboard() {
       connectWifiFromConfig();
       renderWifiConnect();
     }
+  } else if (currentScreen == Screen::PiMonitor) {
+    for (char key : keys.word) {
+      if (key == 'r' || key == 'R') {
+        clearPiMonitorDevices();
+        connectPiMonitorMqtt();
+        renderPiMonitor();
+      } else if (key == 'd' || key == 'D') {
+        disconnectPiMonitorMqtt();
+      } else if (key == 'c' || key == 'C') {
+        publishPiMonitorReadNowCommand();
+      }
+    }
+
+    if (keys.enter) {
+      connectPiMonitorMqtt();
+      renderPiMonitor();
+    }
   } else if (currentScreen == Screen::VoiceMemos) {
     if (voiceMemoRecording) {
       for (char key : keys.word) {

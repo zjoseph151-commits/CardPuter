@@ -12,12 +12,13 @@ Start here if this repository is opened in a fresh Codex chat.
 
 1. Read this file, then read [notes.md](notes.md) and [todo.md](todo.md).
 2. Do not assume unused pins are safe. **Avoid using G8/G9 directly** for external I2C hardware on the Cardputer Adv; those pins share the internal I2C bus and caused keyboard failures during OLED testing.
-3. Priority #5 now includes a WiFi Connect screen that reads credentials from microSD `/config/wifi.txt`. Do not hardcode credentials, and keep `WiFi.begin` limited to that intentional flow.
-4. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
-5. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
-6. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
-7. Build with `python -m platformio run` if `pio` is not on PATH.
-8. Run all guard scripts before claiming work is complete:
+3. Priority #5 now includes a hardware-tested WiFi Connect screen that reads credentials from microSD `/config/wifi.txt`. Do not hardcode credentials, and keep `WiFi.begin` limited to that intentional flow.
+4. Priority #6 now has a hardware-tested MQTT `Pi Monitor` screen using Raspberry Pi settings from microSD `/config/pi.txt`, plus a hardware-tested first whitelisted `read_now` command publisher.
+5. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
+6. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
+7. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
+8. Build with `python -m platformio run` if `pio` is not on PATH.
+9. Run all guard scripts before claiming work is complete:
 
 ```sh
 python tools/check_battery_trend.py
@@ -28,6 +29,7 @@ python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
 python tools/check_power_status.py
+python tools/check_pi_command_center_plan.py
 python tools/check_saved_wifi.py
 python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py
@@ -52,7 +54,8 @@ Current state:
 - Uses the Grove I2C port for the M5Stack ENV III Unit.
 - Uses microSD for voice memo storage.
 - RF Scan works with the NRF24L01 module and shows quiet channels for future NRF24 projects.
-- Has a WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
+- Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
+- Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, and publishes one whitelisted `read_now` command.
 - Has no active ESP-NOW code.
 - Has no active external OLED display code.
 
@@ -88,7 +91,7 @@ Hardware intentionally not active right now:
 
 - External SSD1309 OLED display
 - ESP-NOW RC controller hardware
-- Raspberry Pi networking/control path
+- Direct Raspberry Pi shell/admin control; Pi Monitor stays scoped to MQTT monitoring plus whitelisted JSON commands
 - IR, BLE, audio beyond voice memos, and other expansion hardware
 
 Future idea: add SSD1309 OLED support as a secondary display after choosing a safe pin plan or I2C expansion path. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
@@ -116,6 +119,8 @@ Libraries in [platformio.ini](platformio.ini):
 - `m5stack/M5Unit-ENV`
 - `nrf24/RF24@^1.6.1`
 - `z3t0/IRremote@^4.7.1`
+- `knolleary/PubSubClient@^2.8`
+- `bblanchon/ArduinoJson@^6.21.5`
 
 Arduino/core libraries used by the firmware:
 
@@ -127,6 +132,8 @@ Arduino/core libraries used by the firmware:
 - `SD.h`
 - `Wire.h`
 - `WiFi.h`
+- `PubSubClient.h`
+- `ArduinoJson.h`
 - `math.h`
 
 Important build note:
@@ -150,6 +157,7 @@ Important build note:
 |   |-- input.cpp
 |   |-- level_tool.cpp
 |   |-- main.cpp
+|   |-- pi_monitor.cpp
 |   |-- power_screen.cpp
 |   |-- rf_scanner.cpp
 |   |-- ui.cpp
@@ -170,6 +178,7 @@ Important build note:
 |   |-- check_menu_structure.py
 |   |-- check_nrf24_feature.py
 |   |-- check_oled_test.py
+|   |-- check_pi_command_center_plan.py
 |   |-- check_power_status.py
 |   |-- check_saved_wifi.py
 |   |-- check_wifi_credentials_strategy.py
@@ -183,7 +192,8 @@ Important build note:
             |-- 2026-06-27-saved-wifi-feedback-delete.md
             |-- 2026-06-27-saved-wifi-names.md
             |-- 2026-06-28-voice-memos.md
-            `-- 2026-07-01-environment-feature.md
+            |-- 2026-07-01-environment-feature.md
+            `-- 2026-07-25-raspberry-pi-command-center.md
 ```
 
 File responsibilities:
@@ -196,6 +206,7 @@ File responsibilities:
 - [src/power_screen.cpp](src/power_screen.cpp): Battery/System screens and battery trend logic.
 - [src/wifi_connect.cpp](src/wifi_connect.cpp): SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - [src/wifi_screens.cpp](src/wifi_screens.cpp): Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
+- [src/pi_monitor.cpp](src/pi_monitor.cpp): SD-backed Raspberry Pi MQTT config, subscribe flow, compact device monitor screen, and whitelisted `read_now` command publisher.
 - [src/voice_memos.cpp](src/voice_memos.cpp): microSD WAV recording, listing, playback, and delete flow.
 - [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
 - [src/rf_scanner.cpp](src/rf_scanner.cpp): NRF24 radio setup and RF channel scanner.
@@ -203,7 +214,8 @@ File responsibilities:
 - [platformio.ini](platformio.ini): board/framework/library configuration.
 - [nodes/xiao_nrf24_oled](nodes/xiao_nrf24_oled): separate PlatformIO project for the XIAO ESP32-C3 NRF24/OLED proof node.
 - [tools/](tools): lightweight Python guard scripts. These are not full unit tests, but they catch accidental removal of important behavior and design decisions. Firmware guards use [tools/firmware_source.py](tools/firmware_source.py) to scan all `src` files.
-- [docs/superpowers/plans/](docs/superpowers/plans): implementation plan history for completed features.
+- [docs/superpowers/plans/](docs/superpowers/plans): implementation plans, planning notes, and completed feature history.
+- [docs/superpowers/plans/2026-07-25-raspberry-pi-command-center.md](docs/superpowers/plans/2026-07-25-raspberry-pi-command-center.md): Priority #6 MQTT Pi Monitor planning.
 - [notes.md](notes.md): deeper technical notes, lessons learned, and reasoning.
 - [todo.md](todo.md): prioritized next work.
 
@@ -218,10 +230,11 @@ Menu items:
 3. WiFi Scan
 4. Saved WiFi
 5. WiFi Connect
-6. Voice Memos
-7. Environment
-8. RF Scan
-9. Level
+6. Pi Monitor
+7. Voice Memos
+8. Environment
+9. RF Scan
+10. Level
 
 Navigation:
 
@@ -230,6 +243,7 @@ Navigation:
   - `.` or `/` moves down
 - OK/Enter opens the selected feature.
 - Backspace returns to the main menu from most feature screens.
+- The menu shows eight rows at a time and scrolls when the selected item moves beyond the visible rows.
 - The old bottom footer text was removed from feature screens by user request.
 
 ### Battery
@@ -336,6 +350,51 @@ Rules for the WiFi Connect feature:
 - Keep the existing Saved WiFi feature as SSID-only unless the user explicitly asks to change it.
 - `WiFi.begin` belongs only in the intentional WiFi Connect flow.
 - Connection attempts show clear status, use a timeout, handle missing SD/config gracefully, and return safely to the menu.
+
+### Pi Monitor
+
+Behavior:
+
+- Raspberry Pi MQTT monitor with one whitelisted command action.
+- Requires Wi-Fi to already be connected through WiFi Connect.
+- Reads Raspberry Pi MQTT settings from a microSD card file.
+- Connects to the MQTT broker with `PubSubClient`.
+- Subscribes to `home/#` so terminal-published test messages are visible.
+- Treats `home/devices/<device>/<kind>` topics as structured device-list updates.
+- Displays MQTT status, broker address, message count, last topic/payload, command response display, and a compact device list.
+- Displays the most recent command status on the monitor screen.
+- Shows `home/devices/<device>/responses` or `home/devices/<device>/response` messages on a clearer `Resp:` line.
+- Parses small JSON status/telemetry payloads with ArduinoJson.
+- `C` publishes `{"command":"read_now"}` to `home/devices/<command_target>/commands`.
+- Does not publish arbitrary command text, run shell actions, or perform Raspberry Pi admin actions.
+- Disconnects MQTT when leaving the screen.
+- OK/Enter retries MQTT connection.
+- `R` clears the device list and reconnects.
+- `D` disconnects MQTT.
+
+Pi Monitor config file path on the Cardputer microSD card:
+
+```text
+/config/pi.txt
+```
+
+Config file format:
+
+```text
+mqtt_host=10.0.0.180
+mqtt_port=1883
+device_id=scoober-cardputer
+command_target=esp32-c3-test
+```
+
+Rules for Pi Monitor:
+
+- Reuse WiFi Connect for Wi-Fi; do not add another Wi-Fi credential path.
+- Do not hardcode Pi IPs, MQTT settings, Wi-Fi credentials, or MQTT passwords in source.
+- Do not commit real `pi.txt` files. This repo ignores `/config/pi.txt` and `/pi.txt` in case local copies are created while testing.
+- Keep command publishing whitelisted and explicit. The first allowed command is `read_now` to `home/devices/<command_target>/commands`.
+- User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
+- User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
 
 ### Voice Memos
 
@@ -573,8 +632,14 @@ Current active communication paths:
   - Used for station-mode scanning.
   - Can connect through the WiFi Connect screen when `/config/wifi.txt` exists on microSD.
   - Credentials are not stored in source code or Preferences/NVS.
-  - No HTTP/MQTT/websocket/network command center yet.
+  - Pi Monitor uses MQTT after Wi-Fi is connected.
   - Credential source: microSD `/config/wifi.txt`.
+- **MQTT**
+  - Used by Pi Monitor as a Raspberry Pi/device monitor and scoped command publisher.
+  - Broker settings come from microSD `/config/pi.txt`.
+  - Subscribes to `home/#` for read-only monitoring.
+  - Uses `home/devices/<device>/<kind>` topics to update the compact device list.
+  - Publishes only the whitelisted `read_now` JSON command to `home/devices/<command_target>/commands`.
 - **I2C**
   - Grove external I2C is used by ENV III on G2/G1.
   - Internal I2C is used by Cardputer hardware through M5 libraries.
@@ -593,8 +658,64 @@ Current active communication paths:
 
 Future communication direction:
 
-- Raspberry Pi command center ideas are still future work.
-- Wi-Fi now has a safe connection foundation, but no higher-level networking protocol exists yet.
+- Raspberry Pi command center implementation has started.
+- First transport decision: Wi-Fi MQTT.
+- First firmware milestone: read-only `Pi Monitor`, confirmed working on hardware on 2026-07-29.
+- First command milestone: whitelisted `read_now` publisher to an explicit `command_target`, confirmed working on hardware on 2026-07-30.
+- Pi/MQTT settings should come from microSD `/config/pi.txt`.
+
+## Raspberry Pi Command Center Plan
+
+Priority #6 starts with a small read-only MQTT monitor and adds command actions only as whitelisted JSON publishes, never shell control or admin actions.
+
+First milestone:
+
+- Add a `Pi Monitor` menu item. Done in first pass.
+- Require Wi-Fi to already be connected through WiFi Connect.
+- Read Raspberry Pi MQTT settings from `/config/pi.txt` on microSD.
+- Connect to the Raspberry Pi MQTT broker.
+- Subscribe to `home/#` for read-only visibility while testing.
+- Show MQTT connection status, message count, last topic/payload, and a compact device list on the Cardputer display.
+- Keep Backspace return-to-menu behavior.
+- Fail gracefully when Wi-Fi, SD config, or the broker is unavailable.
+
+First command action:
+
+- Add `command_target` to `/config/pi.txt`.
+- Press `C` on Pi Monitor to publish `{"command":"read_now"}`.
+- Publish to `home/devices/<command_target>/commands`.
+- Keep command publishing scoped to this explicit whitelisted command.
+- Done and confirmed working on Cardputer hardware on 2026-07-30.
+
+Response display:
+
+- Shows response topics such as `home/devices/<device>/responses` on a dedicated `Resp:` line.
+- Summarizes common JSON response fields such as `ok`, `success`, `status`, `command`, `message`, and `error`.
+- Keeps the generic `Last` / `Pay` lines visible for raw topic troubleshooting.
+
+Suggested `/config/pi.txt` format:
+
+```text
+mqtt_host=10.0.0.180
+mqtt_port=1883
+device_id=scoober-cardputer
+command_target=esp32-c3-test
+```
+
+Reason for MQTT:
+
+- The Raspberry Pi learning repo already uses an MQTT broker/listener and `home/devices/<device>/...` topics.
+- The Pi listener already subscribes to `home/#`.
+- MQTT can support later safe command actions using existing device `commands` topics.
+- HTTP can be revisited later if the Pi dashboard grows a small JSON API.
+
+Rules:
+
+- Reuse the existing WiFi Connect flow; do not add another Wi-Fi credential path.
+- Do not hardcode Pi IPs, MQTT settings, Wi-Fi credentials, or MQTT passwords in source.
+- Do not commit real `pi.txt` files. This repo ignores `/config/pi.txt` and `/pi.txt` in case local copies are created while testing.
+- Do not implement direct shell control, remote command execution, or Raspberry Pi admin actions.
+- Do not add arbitrary command text entry; add command actions one whitelisted JSON payload at a time.
 
 ## Power Architecture And Voltage Details
 
@@ -694,21 +815,21 @@ Guard script:
 
 Highest priority:
 
-1. Smoke-test the split firmware on Cardputer Adv hardware after upload.
-2. Keep testing the Environment screen with the ENV III connected and disconnected.
-3. Confirm no keyboard regression while ENV III is plugged into Grove.
+1. Hardware-test the new `Resp:` command response display.
+2. Add target selection for known devices once there is more than one command target.
+3. Keep existing local utility features stable while adding Pi networking.
 
 Good near-term improvements:
 
-1. Add timestamps if a reliable time source is introduced.
-2. Add a simple settings screen for units, refresh rate, and maybe Fahrenheit-only display.
-3. Add a file browser or memo management improvements for Voice Memos.
-4. Add a lightweight Wi-Fi status/network utility after hardware testing confirms WiFi Connect behaves well.
+1. Publish Cardputer status/availability as `scoober-cardputer`.
+2. Refine command response display after hardware feedback.
+3. Add another safe command action such as `set_interval` after the `read_now` publish/response flow works.
+4. Add timestamps if a reliable time source is introduced.
 
 Future bigger milestones:
 
-1. Raspberry Pi command center integration.
-2. Wi-Fi networking after a credential strategy is chosen.
+1. Broader Raspberry Pi command center integration.
+2. MQTT authentication after live Mosquitto configuration is confirmed.
 3. Future idea: optional external display support only after a safe pin/I2C expansion plan is chosen.
 4. More hardware tools using IR, Grove, BLE, or other Cardputer expansion options.
 
@@ -814,6 +935,7 @@ python tools/check_level_tool.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
+python tools/check_pi_command_center_plan.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
 python tools/check_wifi_credentials_strategy.py
@@ -848,6 +970,17 @@ After upload:
 - WiFi Connect connects when `/config/wifi.txt` has a valid SSID/password and shows an IP address.
 - WiFi Connect times out and shows failure status for wrong credentials.
 - WiFi Connect disconnects with `D`.
+- User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.
+- Pi Monitor handles missing `/config/pi.txt` gracefully.
+- Pi Monitor shows `Use WiFi Connect` when Wi-Fi is not connected.
+- Pi Monitor connects to the configured MQTT broker when `/config/pi.txt` is valid.
+- Pi Monitor increments `Msgs` and shows the last topic/payload for incoming `home/#` messages.
+- Pi Monitor updates the device list for `home/devices/<device>/<kind>` topics.
+- Pi Monitor publishes `read_now` to `home/devices/<command_target>/commands` with `C` when `command_target=esp32-c3-test` is present in `/config/pi.txt`.
+- Pi Monitor shows response topics such as `home/devices/<device>/responses` on a dedicated `Resp:` line.
+- Pi Monitor disconnects MQTT with `D`, clears/reconnects with `R`, and retries connection with OK/Enter.
+- User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
+- User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
 - Voice Memos records WAV files to microSD.
 - Voice Memos lists saved memos, plays with OK/Enter, and deletes selected memos with `D`.
 - Environment shows live temperature, humidity, and pressure when ENV III is connected.
@@ -864,10 +997,11 @@ After upload:
 - The user wants Codex to edit/generate code and documentation directly.
 - Keep the first stable foundation simple and beginner-friendly.
 - Do not add RC car control unless the user explicitly changes direction.
-- Do not add Raspberry Pi networking until the user asks for that milestone.
+- Raspberry Pi networking is now in Priority #6 implementation; the first firmware milestone is a read-only MQTT monitor, followed by whitelisted JSON commands.
 - Do not hardcode Wi-Fi credentials.
 - Do not store Wi-Fi passwords in Preferences/NVS.
 - Wi-Fi credentials should come from microSD `/config/wifi.txt`; do not commit real `wifi.txt` files.
+- Raspberry Pi MQTT settings should come from microSD `/config/pi.txt`; do not commit real `pi.txt` files.
 - Keep external I2C on Grove unless a hardware expansion plan is explicit.
 - Preserve existing working behavior unless the user asks for a change.
 - The current codebase is intentionally pragmatic; do not over-refactor unless it helps the current task.

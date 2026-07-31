@@ -22,6 +22,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/power_screen.cpp`: Battery/System screens and battery trend logic.
 - `src/wifi_connect.cpp`: SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - `src/wifi_screens.cpp`: Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
+- `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, compact device monitor screen, and whitelisted `read_now` command publisher.
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
 - `src/rf_scanner.cpp`: NRF24 setup and RF channel scanner.
@@ -38,6 +39,7 @@ The active menu is defined in `MENU_ITEMS`:
 {"WiFi Scan", Screen::WifiScan}
 {"Saved WiFi", Screen::SavedWifi}
 {"WiFi Connect", Screen::WifiConnect}
+{"Pi Monitor", Screen::PiMonitor}
 {"Voice Memos", Screen::VoiceMemos}
 {"Environment", Screen::Environment}
 {"RF Scan", Screen::RfScanner}
@@ -69,6 +71,7 @@ Feature-specific keys:
 - WiFi Scan: `R` rescans, OK saves selected network name
 - Saved WiFi: `D` deletes selected saved SSID after confirmation
 - WiFi Connect: OK retries connection, `D` disconnects
+- Pi Monitor: OK retries MQTT connection, `C` publishes whitelisted `read_now`, `R` clears the device list and reconnects, `D` disconnects MQTT
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
 - RF Scan: `R` rescans, OK rescans, `,` / `;` and `.` / `/` move the channel marker
 
@@ -138,6 +141,7 @@ Guard:
 ## Wi-Fi Notes
 
 Wi-Fi has scan, SSID-only saved names, and an SD-backed connect screen.
+User confirmed the WiFi Connect screen tested successfully on Cardputer hardware on 2026-07-23.
 
 Current rules:
 
@@ -449,17 +453,63 @@ Current state:
 
 ## Raspberry Pi Command Center Notes
 
-This remains a future direction but no networking code exists yet.
+Priority #6 planning started on 2026-07-25.
+The first firmware pass was added on 2026-07-27.
+User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
+The first whitelisted `read_now` command publisher was added on 2026-07-30.
+User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
 
-Likely future concerns:
+Decision:
 
-- Secure Wi-Fi credential handling
-- Command protocol
-- UI structure for commands/status
-- Whether the Pi talks over Wi-Fi, BLE, USB serial, MQTT, HTTP, or another channel
-- How to preserve offline/local utility features while adding networking
+- Use Wi-Fi MQTT as the first Raspberry Pi command center transport.
+- Start with a read-only `Pi Monitor` screen, then add command publishing one whitelisted JSON action at a time.
+- Reuse WiFi Connect for network access; do not create a second Wi-Fi credential path.
+- Read Pi/MQTT settings from microSD `/config/pi.txt`.
+- Keep direct shell control, remote command execution, and Pi admin actions out of the first milestone.
 
-Do not add this until the user asks.
+Why MQTT:
+
+- The Raspberry Pi learning repo already has an MQTT broker/listener architecture.
+- The Pi listener subscribes to `home/#`.
+- The ESP32-C3 test node already publishes under `home/devices/esp32-c3-test/...`.
+- MQTT lets the Cardputer watch device status without requiring a new Pi HTTP API.
+- Later command features can publish safe JSON commands to existing `commands` topics.
+
+`/config/pi.txt` format:
+
+```text
+mqtt_host=10.0.0.180
+mqtt_port=1883
+device_id=scoober-cardputer
+command_target=esp32-c3-test
+```
+
+Current Pi Monitor firmware behavior:
+
+- Menu item: `Pi Monitor`.
+- Requires Wi-Fi to already be connected through WiFi Connect.
+- Uses `PubSubClient` for MQTT and `ArduinoJson` for small status/telemetry summaries.
+- Connects to the configured MQTT broker.
+- Subscribes to `home/#` for read-only visibility while testing.
+- Shows MQTT connection status, broker, message count, last topic/payload, command response display, and a compact device list.
+- Treats `home/devices/<device>/<kind>` topics as structured device-list updates.
+- Shows `home/devices/<device>/responses` or `home/devices/<device>/response` messages on a dedicated `Resp:` line.
+- Stores up to `MAX_PI_MONITOR_DEVICES = 6` devices and displays up to `PI_MONITOR_VISIBLE_DEVICES = 1` with the command status line visible.
+- Fails gracefully when Wi-Fi, SD config, or broker connection is missing.
+- Backspace returns to the menu and stops the MQTT connection.
+- OK retries MQTT connection.
+- `C` publishes `{"command":"read_now"}` to `home/devices/<command_target>/commands`.
+- `R` clears the device list and reconnects.
+- `D` disconnects MQTT.
+- Does not publish arbitrary command text, shell commands, or Raspberry Pi admin actions.
+
+Later milestones:
+
+- Hardware-test the dedicated `Resp:` command response display.
+- Add target selection for known devices once there is more than one command target.
+- Publish Cardputer status/availability as `scoober-cardputer`.
+- Add another safe command action for the ESP32-C3 test node, such as `set_interval`.
+- Consider MQTT authentication after live Mosquitto configuration is confirmed on the Raspberry Pi.
 
 ## Build And Verification Notes
 
@@ -487,6 +537,7 @@ python tools/check_level_tool.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
+python tools/check_pi_command_center_plan.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
 python tools/check_wifi_credentials_strategy.py

@@ -11,6 +11,7 @@ def test_scoober_menu_structure():
     assert '"WiFi Scan"' in SOURCE
     assert '"Saved WiFi"' in SOURCE
     assert '"WiFi Connect"' in SOURCE
+    assert '"Pi Monitor"' in SOURCE
     assert '"Voice Memos"' in SOURCE
     assert '"Environment"' in SOURCE
     assert '"RF Scan"' in SOURCE

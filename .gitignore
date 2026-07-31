@@ -10,3 +10,5 @@
 __pycache__/
 /config/wifi.txt
 /wifi.txt
+/config/pi.txt
+/pi.txt

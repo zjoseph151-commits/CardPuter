@@ -4,6 +4,9 @@ void setScreen(Screen screen) {
   if (currentScreen == Screen::RfScanner && screen != Screen::RfScanner) {
     powerDownNrf24Radio();
   }
+  if (currentScreen == Screen::PiMonitor && screen != Screen::PiMonitor) {
+    stopPiMonitor();
+  }
 
   currentScreen = screen;
   lastSystemRefreshMs = 0;
@@ -51,6 +54,10 @@ void setScreen(Screen screen) {
     case Screen::WifiConnect:
       drawScreenFrame("WiFi Connect");
       showWifiConnect();
+      break;
+    case Screen::PiMonitor:
+      drawScreenFrame("Pi Monitor (C read OK MQTT)");
+      showPiMonitor();
       break;
     case Screen::VoiceMemos:
       drawScreenFrame("Voice Memos (R record OK play)");
@@ -113,9 +120,24 @@ void commitContentDraw() {
 void showMainMenu() {
   drawHeader("Scoober (Use arrows, OK to select)");
 
-  for (int i = 0; i < MENU_ITEM_COUNT; ++i) {
-    const int rowY = 28 + (i * 12);
-    const bool selected = i == selectedMenuIndex;
+  if (selectedMenuIndex < menuScrollOffset) {
+    menuScrollOffset = selectedMenuIndex;
+  } else if (selectedMenuIndex >= menuScrollOffset + MAIN_MENU_VISIBLE_ROWS) {
+    menuScrollOffset = selectedMenuIndex - MAIN_MENU_VISIBLE_ROWS + 1;
+  }
+
+  if (menuScrollOffset < 0) {
+    menuScrollOffset = 0;
+  }
+  if (menuScrollOffset > MENU_ITEM_COUNT - MAIN_MENU_VISIBLE_ROWS) {
+    menuScrollOffset = max(0, MENU_ITEM_COUNT - MAIN_MENU_VISIBLE_ROWS);
+  }
+
+  const int visibleCount = min(MAIN_MENU_VISIBLE_ROWS, MENU_ITEM_COUNT);
+  for (int visibleIndex = 0; visibleIndex < visibleCount; ++visibleIndex) {
+    const int menuIndex = menuScrollOffset + visibleIndex;
+    const int rowY = 28 + (visibleIndex * 12);
+    const bool selected = menuIndex == selectedMenuIndex;
 
     if (selected) {
       M5Cardputer.Display.fillRect(6, rowY - 1, M5Cardputer.Display.width() - 12, 12,
@@ -128,9 +150,13 @@ void showMainMenu() {
       M5Cardputer.Display.setCursor(22, rowY);
     }
 
-    M5Cardputer.Display.print(MENU_ITEMS[i].label);
+    M5Cardputer.Display.print(MENU_ITEMS[menuIndex].label);
   }
 
+  M5Cardputer.Display.setTextColor(DARKGREY, BLACK);
+  M5Cardputer.Display.setCursor(182, 124);
+  M5Cardputer.Display.printf("%d-%d/%d", menuScrollOffset + 1,
+                             menuScrollOffset + visibleCount, MENU_ITEM_COUNT);
   M5Cardputer.Display.setTextColor(WHITE, BLACK);
 }
 

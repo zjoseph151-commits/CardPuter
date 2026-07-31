@@ -4,11 +4,13 @@
 #include <M5Cardputer.h>
 #include <M5UnitENV.h>
 #include <Preferences.h>
+#include <PubSubClient.h>
 #include <RF24.h>
 #include <SPI.h>
 #include <SD.h>
 #include <Wire.h>
 #include <WiFi.h>
+#include <ArduinoJson.h>
 #include <math.h>
 
 constexpr const char* FIRMWARE_NAME = "Scoober";
@@ -20,6 +22,7 @@ constexpr int CHARGING_TREND_THRESHOLD_MV = 50;
 constexpr int CHARGING_CONFIRM_SAMPLES = 3;
 constexpr int CHARGING_CLEAR_SAMPLES = 3;
 constexpr int VBUS_PRESENT_THRESHOLD_MV = 4500;
+constexpr int MAIN_MENU_VISIBLE_ROWS = 8;
 constexpr int MAX_WIFI_NETWORKS = 40;
 constexpr int WIFI_VISIBLE_ROWS = 5;
 constexpr int MAX_SAVED_WIFI_NAMES = 20;
@@ -27,6 +30,15 @@ constexpr int SAVED_WIFI_VISIBLE_ROWS = 5;
 constexpr const char* WIFI_CONFIG_PATH = "/config/wifi.txt";
 constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 15000;
 constexpr uint32_t WIFI_CONNECT_POLL_MS = 250;
+constexpr const char* PI_CONFIG_PATH = "/config/pi.txt";
+constexpr const char* PI_MONITOR_DEFAULT_DEVICE_ID = "scoober-cardputer";
+constexpr uint16_t PI_MQTT_DEFAULT_PORT = 1883;
+constexpr uint16_t PI_MQTT_PACKET_BUFFER_SIZE = 512;
+constexpr uint16_t PI_MQTT_SOCKET_TIMEOUT_SECONDS = 2;
+constexpr uint16_t PI_MQTT_KEEPALIVE_SECONDS = 30;
+constexpr int MAX_PI_MONITOR_DEVICES = 6;
+constexpr int PI_MONITOR_VISIBLE_DEVICES = 1;
+constexpr const char* PI_MONITOR_READ_NOW_PAYLOAD = "{\"command\":\"read_now\"}";
 constexpr int SD_SPI_SCK_PIN = 40;
 constexpr int SD_SPI_MISO_PIN = 39;
 constexpr int SD_SPI_MOSI_PIN = 14;
@@ -80,6 +92,7 @@ enum class Screen {
   SavedWifiDeleteConfirm,
   SavedWifiDeleteResult,
   WifiConnect,
+  PiMonitor,
   VoiceMemos,
   VoiceMemoDeleteConfirm,
   VoiceMemoDeleteResult,
@@ -115,6 +128,15 @@ struct WifiNetwork {
   int encryption = 0;
 };
 
+struct PiMonitorDevice {
+  bool active = false;
+  String id;
+  String availability;
+  String summary;
+  String topicKind;
+  unsigned long lastSeenMs = 0;
+};
+
 struct VoiceMemoFile {
   String name;
   String path;
@@ -144,8 +166,11 @@ extern const int MENU_ITEM_COUNT;
 extern SHT3X envSht30;
 extern QMP6988 envQmp6988;
 extern RF24 nrf24Radio;
+extern WiFiClient piMonitorWifiClient;
+extern PubSubClient piMonitorMqttClient;
 extern Screen currentScreen;
 extern int selectedMenuIndex;
+extern int menuScrollOffset;
 extern unsigned long lastSystemRefreshMs;
 extern unsigned long lastLevelRefreshMs;
 extern unsigned long lastBatterySampleMs;
@@ -171,6 +196,21 @@ extern String savedWifiDeleteResultMessage;
 extern String wifiConnectStatus;
 extern String wifiConnectSsid;
 extern String wifiConnectIp;
+extern String piMonitorStatus;
+extern String piMonitorBrokerHost;
+extern uint16_t piMonitorBrokerPort;
+extern String piMonitorDeviceId;
+extern String piMonitorCommandTarget;
+extern String piMonitorCommandStatus;
+extern uint32_t piMonitorCommandCount;
+extern String piMonitorLastResponseDevice;
+extern String piMonitorLastResponseSummary;
+extern uint32_t piMonitorResponseCount;
+extern bool piMonitorConfigLoaded;
+extern String piMonitorLastTopic;
+extern String piMonitorLastPayload;
+extern uint32_t piMonitorMessageCount;
+extern PiMonitorDevice piMonitorDevices[MAX_PI_MONITOR_DEVICES];
 extern VoiceMemoFile voiceMemos[MAX_VOICE_MEMOS];
 extern int voiceMemoCount;
 extern int selectedVoiceMemoIndex;
@@ -238,6 +278,8 @@ void renderSavedWifiDeleteConfirm();
 void renderSavedWifiDeleteResult();
 void showWifiConnect();
 void renderWifiConnect();
+void showPiMonitor();
+void renderPiMonitor();
 void showVoiceMemos();
 void renderVoiceMemos();
 void renderVoiceMemoDeleteConfirm();
@@ -270,6 +312,15 @@ bool readWifiCredentialsFromSd(String& wifiSsid, String& wifiPassword);
 bool connectWifiFromConfig();
 void disconnectWifi();
 const char* wifiStatusText(wl_status_t status);
+bool initPiMonitorConfigSd();
+bool readPiMonitorConfigFromSd();
+bool connectPiMonitorMqtt();
+void disconnectPiMonitorMqtt();
+bool publishPiMonitorReadNowCommand();
+void stopPiMonitor();
+void servicePiMonitor();
+void clearPiMonitorDevices();
+void handlePiMonitorMessage(char* topic, byte* payload, unsigned int length);
 bool initVoiceMemoSd();
 void scanVoiceMemos();
 bool findNextVoiceMemoPath(String& path, String& name);
