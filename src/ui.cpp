@@ -56,7 +56,7 @@ void setScreen(Screen screen) {
       showWifiConnect();
       break;
     case Screen::PiMonitor:
-      drawScreenFrame("Pi Monitor (C read OK MQTT)");
+      drawScreenFrame("Pi Monitor (T tgt C/I/S)");
       showPiMonitor();
       break;
     case Screen::VoiceMemos:

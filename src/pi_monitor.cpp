@@ -57,6 +57,78 @@ String buildPiMonitorClientId() {
   return base + "-" + chipText;
 }
 
+String normalizedPiMonitorDeviceId() {
+  String deviceId = piMonitorDeviceId;
+  deviceId.trim();
+
+  if (deviceId.length() == 0) {
+    deviceId = PI_MONITOR_DEFAULT_DEVICE_ID;
+  }
+
+  return deviceId;
+}
+
+String buildPiMonitorDeviceTopic(const char* topicKind) {
+  return String("home/devices/") + normalizedPiMonitorDeviceId() + "/" + topicKind;
+}
+
+String activePiMonitorCommandTarget() {
+  String target = piMonitorSelectedCommandTarget;
+  target.trim();
+
+  if (target.length() == 0) {
+    target = piMonitorCommandTarget;
+    target.trim();
+  }
+
+  return target;
+}
+
+bool isPiMonitorOwnDevice(const String& deviceId) {
+  return deviceId == normalizedPiMonitorDeviceId();
+}
+
+bool piMonitorTargetCandidateExists(String candidates[], int candidateCount,
+                                    const String& candidate) {
+  for (int i = 0; i < candidateCount; ++i) {
+    if (candidates[i] == candidate) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void addPiMonitorTargetCandidate(String candidates[], int& candidateCount,
+                                 int maxCandidates, const String& candidate) {
+  String trimmedCandidate = candidate;
+  trimmedCandidate.trim();
+
+  if (trimmedCandidate.length() == 0 || isPiMonitorOwnDevice(trimmedCandidate) ||
+      candidateCount >= maxCandidates ||
+      piMonitorTargetCandidateExists(candidates, candidateCount, trimmedCandidate)) {
+    return;
+  }
+
+  candidates[candidateCount] = trimmedCandidate;
+  ++candidateCount;
+}
+
+int buildPiMonitorTargetCandidates(String candidates[], int maxCandidates) {
+  int candidateCount = 0;
+  addPiMonitorTargetCandidate(candidates, candidateCount, maxCandidates,
+                              piMonitorCommandTarget);
+
+  for (int i = 0; i < MAX_PI_MONITOR_DEVICES; ++i) {
+    if (piMonitorDevices[i].active) {
+      addPiMonitorTargetCandidate(candidates, candidateCount, maxCandidates,
+                                  piMonitorDevices[i].id);
+    }
+  }
+
+  return candidateCount;
+}
+
 bool parsePiMonitorTopic(const char* topic, String& deviceId, String& topicKind) {
   const String topicText(topic);
   const String prefix = "home/devices/";
@@ -144,8 +216,37 @@ String summarizeTelemetryPayload(const StaticJsonDocument<384>& document) {
   return "telemetry";
 }
 
+bool hasTopicSegment(const String& topicKind, const char* segment) {
+  const String segmentText(segment);
+  const String prefix = segmentText + "/";
+  const String suffix = String("/") + segmentText;
+  const String middle = suffix + "/";
+  return topicKind == segmentText || topicKind.startsWith(prefix) ||
+         topicKind.endsWith(suffix) || topicKind.indexOf(middle) >= 0;
+}
+
 bool isPiMonitorResponseKind(const String& topicKind) {
-  return topicKind == "responses" || topicKind == "response";
+  return hasTopicSegment(topicKind, "responses") ||
+         hasTopicSegment(topicKind, "response") ||
+         topicKind == "command_response" ||
+         topicKind == "command_result" ||
+         topicKind.endsWith("_response") ||
+         topicKind.endsWith("_result");
+}
+
+bool isPiMonitorCommandTargetUpdate(const String& deviceId, const String& topicKind) {
+  const String target = activePiMonitorCommandTarget();
+  if (target.length() == 0 || deviceId != target ||
+      piMonitorCommandCount == 0 || piMonitorLastCommandSentMs == 0) {
+    return false;
+  }
+
+  if (topicKind == "availability" || topicKind == "commands" ||
+      topicKind.startsWith("commands/")) {
+    return false;
+  }
+
+  return millis() - piMonitorLastCommandSentMs <= PI_MONITOR_RESPONSE_WINDOW_MS;
 }
 
 String summarizeResponsePayload(const String& payloadText) {
@@ -250,6 +351,84 @@ String compactTopic(const String& topic) {
   return topic;
 }
 
+bool buildPiMonitorStatusPayload(char* payload, size_t payloadSize) {
+  StaticJsonDocument<384> document;
+  const String statusDeviceId = normalizedPiMonitorDeviceId();
+  document["device"] = statusDeviceId;
+  document["firmware_version"] = FIRMWARE_VERSION;
+  document["uptime_ms"] = millis();
+  document["wifi_rssi"] = WiFi.RSSI();
+  document["free_heap"] = ESP.getFreeHeap();
+
+  if (lastBatteryVoltageMv > 0) {
+    document["battery_mv"] = lastBatteryVoltageMv;
+  }
+
+  if (lastBatteryLevel >= 0 && isBatteryLevelDisplayable()) {
+    document["battery_percent"] = lastBatteryLevel;
+  }
+
+  document["external_power"] = isExternalPowerPresent();
+  document["charging"] = isFilteredCharging();
+
+  return serializeJson(document, payload, payloadSize) > 0;
+}
+
+bool publishPiMonitorAvailability(const char* availability) {
+  if (!piMonitorMqttClient.connected()) {
+    return false;
+  }
+
+  const String availabilityTopic = buildPiMonitorDeviceTopic("availability");
+  const bool published =
+      piMonitorMqttClient.publish(availabilityTopic.c_str(), availability, true);
+
+  if (published) {
+    Serial.printf("Pi Monitor: published availability %s to %s\n", availability,
+                  availabilityTopic.c_str());
+  } else {
+    Serial.printf("Pi Monitor: availability publish failed for %s\n",
+                  availabilityTopic.c_str());
+  }
+
+  return published;
+}
+
+bool publishPiMonitorStatus() {
+  if (!piMonitorMqttClient.connected()) {
+    return false;
+  }
+
+  char statusPayload[384];
+  if (!buildPiMonitorStatusPayload(statusPayload, sizeof(statusPayload))) {
+    Serial.println("Pi Monitor: could not build status payload.");
+    return false;
+  }
+
+  const String statusTopic = buildPiMonitorDeviceTopic("status");
+  const bool published =
+      piMonitorMqttClient.publish(statusTopic.c_str(), statusPayload, true);
+  piMonitorLastStatusPublishMs = millis();
+
+  if (published) {
+    ++piMonitorStatusPublishCount;
+    Serial.printf("Pi Monitor: published status %lu to %s\n",
+                  static_cast<unsigned long>(piMonitorStatusPublishCount),
+                  statusTopic.c_str());
+  } else {
+    Serial.printf("Pi Monitor: status publish failed for %s\n", statusTopic.c_str());
+  }
+
+  return published;
+}
+
+bool buildPiMonitorSetIntervalPayload(char* payload, size_t payloadSize) {
+  StaticJsonDocument<96> document;
+  document["command"] = "set_interval";
+  document["seconds"] = selectedPiMonitorSetIntervalSeconds();
+  return serializeJson(document, payload, payloadSize) > 0;
+}
+
 }  // namespace
 
 void showPiMonitor() {
@@ -276,12 +455,15 @@ void renderPiMonitor() {
   contentCanvas.printf("Msgs: %lu Devs:%d\n",
                        static_cast<unsigned long>(piMonitorMessageCount),
                        countPiMonitorDevices());
+  String targetLine = activePiMonitorCommandTarget();
+  if (targetLine.length() == 0) {
+    targetLine = "none";
+  }
+  contentCanvas.printf("Tgt: %s\n", targetLine.substring(0, 22).c_str());
   contentCanvas.printf("Cmd: %s\n", piMonitorCommandStatus.substring(0, 22).c_str());
-  if (piMonitorResponseCount > 0) {
+  if (piMonitorLastResponseSummary.length() > 0) {
     String responseLine = piMonitorLastResponseDevice + " " + piMonitorLastResponseSummary;
     contentCanvas.printf("Resp: %s\n", responseLine.substring(0, 22).c_str());
-  } else {
-    contentCanvas.println("Resp: waiting.");
   }
 
   if (piMonitorLastTopic.length() > 0) {
@@ -335,6 +517,7 @@ bool readPiMonitorConfigFromSd() {
   piMonitorBrokerPort = PI_MQTT_DEFAULT_PORT;
   piMonitorDeviceId = PI_MONITOR_DEFAULT_DEVICE_ID;
   piMonitorCommandTarget = "";
+  piMonitorSelectedCommandTarget = "";
 
   if (!initPiMonitorConfigSd()) {
     return false;
@@ -392,6 +575,7 @@ bool readPiMonitorConfigFromSd() {
   piMonitorBrokerHost.trim();
   piMonitorDeviceId.trim();
   piMonitorCommandTarget.trim();
+  piMonitorSelectedCommandTarget = piMonitorCommandTarget;
 
   if (piMonitorBrokerHost.length() == 0) {
     piMonitorStatus = "Missing mqtt_host.";
@@ -406,7 +590,8 @@ bool readPiMonitorConfigFromSd() {
   if (piMonitorCommandTarget.length() == 0) {
     piMonitorCommandStatus = "No command target.";
   } else if (piMonitorCommandCount == 0) {
-    piMonitorCommandStatus = String("C read ") + piMonitorCommandTarget;
+    piMonitorCommandStatus =
+        String("C read I") + String(selectedPiMonitorSetIntervalSeconds()) + " S set";
   }
 
   piMonitorConfigLoaded = true;
@@ -428,6 +613,7 @@ bool connectPiMonitorMqtt() {
   renderPiMonitor();
 
   if (piMonitorMqttClient.connected()) {
+    publishPiMonitorAvailability("offline");
     piMonitorMqttClient.disconnect();
   }
 
@@ -441,7 +627,9 @@ bool connectPiMonitorMqtt() {
   Serial.printf("Pi Monitor: connecting to MQTT %s:%u as %s\n",
                 piMonitorBrokerHost.c_str(), piMonitorBrokerPort, clientId.c_str());
 
-  if (!piMonitorMqttClient.connect(clientId.c_str())) {
+  const String availabilityTopic = buildPiMonitorDeviceTopic("availability");
+  if (!piMonitorMqttClient.connect(clientId.c_str(), availabilityTopic.c_str(), 0, true,
+                                   "offline")) {
     piMonitorStatus = String("MQTT failed: ") + mqttStateText(piMonitorMqttClient.state());
     Serial.printf("Pi Monitor: MQTT connect failed, state=%s\n",
                   mqttStateText(piMonitorMqttClient.state()));
@@ -451,21 +639,76 @@ bool connectPiMonitorMqtt() {
   if (!piMonitorMqttClient.subscribe("home/#")) {
     piMonitorStatus = "MQTT sub failed.";
     Serial.println("Pi Monitor: MQTT subscription failed.");
+    publishPiMonitorAvailability("offline");
+    piMonitorMqttClient.disconnect();
     return false;
   }
 
   piMonitorStatus = "MQTT connected.";
   Serial.println("Pi Monitor: MQTT connected and subscribed to home/#.");
+  publishPiMonitorAvailability("online");
+  publishPiMonitorStatus();
   return true;
 }
 
 void disconnectPiMonitorMqtt() {
   if (piMonitorMqttClient.connected()) {
+    publishPiMonitorAvailability("offline");
     piMonitorMqttClient.disconnect();
   }
 
   piMonitorStatus = "MQTT disconnected.";
   Serial.println("Pi Monitor: MQTT disconnected.");
+  renderPiMonitor();
+}
+
+uint16_t selectedPiMonitorSetIntervalSeconds() {
+  if (piMonitorSetIntervalIndex < 0 ||
+      piMonitorSetIntervalIndex >= PI_MONITOR_SET_INTERVAL_OPTION_COUNT) {
+    piMonitorSetIntervalIndex = 1;
+  }
+
+  return PI_MONITOR_SET_INTERVAL_OPTIONS_SECONDS[piMonitorSetIntervalIndex];
+}
+
+void cyclePiMonitorCommandTarget() {
+  String candidates[MAX_PI_MONITOR_DEVICES + 1];
+  const int candidateCount =
+      buildPiMonitorTargetCandidates(candidates, MAX_PI_MONITOR_DEVICES + 1);
+
+  if (candidateCount == 0) {
+    piMonitorSelectedCommandTarget = "";
+    piMonitorCommandStatus = "No command target.";
+    Serial.println("Pi Monitor: no command targets to select.");
+    renderPiMonitor();
+    return;
+  }
+
+  const String currentTarget = activePiMonitorCommandTarget();
+  int currentIndex = -1;
+  for (int i = 0; i < candidateCount; ++i) {
+    if (candidates[i] == currentTarget) {
+      currentIndex = i;
+      break;
+    }
+  }
+
+  const int nextIndex = (currentIndex + 1) % candidateCount;
+  piMonitorSelectedCommandTarget = candidates[nextIndex];
+  piMonitorCommandStatus =
+      String("target ") + piMonitorSelectedCommandTarget.substring(0, 14);
+  Serial.printf("Pi Monitor: selected command target %s\n",
+                piMonitorSelectedCommandTarget.c_str());
+  renderPiMonitor();
+}
+
+void cyclePiMonitorSetInterval() {
+  piMonitorSetIntervalIndex =
+      (piMonitorSetIntervalIndex + 1) % PI_MONITOR_SET_INTERVAL_OPTION_COUNT;
+  piMonitorCommandStatus =
+      String("interval ") + String(selectedPiMonitorSetIntervalSeconds()) + "s S send";
+  Serial.printf("Pi Monitor: selected set_interval %us\n",
+                selectedPiMonitorSetIntervalSeconds());
   renderPiMonitor();
 }
 
@@ -477,14 +720,15 @@ bool publishPiMonitorReadNowCommand() {
     return false;
   }
 
-  if (piMonitorCommandTarget.length() == 0) {
+  const String commandTarget = activePiMonitorCommandTarget();
+  if (commandTarget.length() == 0) {
     piMonitorCommandStatus = "No command target.";
     Serial.println("Pi Monitor: read_now not sent; command_target is missing.");
     renderPiMonitor();
     return false;
   }
 
-  const String commandTopic = String("home/devices/") + piMonitorCommandTarget + "/commands";
+  const String commandTopic = String("home/devices/") + commandTarget + "/commands";
 
   Serial.printf("Pi Monitor: publishing read_now to %s\n", commandTopic.c_str());
   const bool published =
@@ -492,6 +736,9 @@ bool publishPiMonitorReadNowCommand() {
 
   if (published) {
     ++piMonitorCommandCount;
+    piMonitorLastCommandSentMs = millis();
+    piMonitorLastResponseDevice = commandTarget;
+    piMonitorLastResponseSummary = "";
     piMonitorCommandStatus = String("read_now sent ") + String(piMonitorCommandCount);
     Serial.println("Pi Monitor: read_now command published.");
   } else {
@@ -503,8 +750,57 @@ bool publishPiMonitorReadNowCommand() {
   return published;
 }
 
+bool publishPiMonitorSetIntervalCommand() {
+  if (!piMonitorMqttClient.connected()) {
+    piMonitorCommandStatus = "MQTT not connected.";
+    Serial.println("Pi Monitor: set_interval not sent; MQTT is not connected.");
+    renderPiMonitor();
+    return false;
+  }
+
+  const String commandTarget = activePiMonitorCommandTarget();
+  if (commandTarget.length() == 0) {
+    piMonitorCommandStatus = "No command target.";
+    Serial.println("Pi Monitor: set_interval not sent; command_target is missing.");
+    renderPiMonitor();
+    return false;
+  }
+
+  char commandPayload[96];
+  if (!buildPiMonitorSetIntervalPayload(commandPayload, sizeof(commandPayload))) {
+    piMonitorCommandStatus = "set payload failed.";
+    Serial.println("Pi Monitor: set_interval payload build failed.");
+    renderPiMonitor();
+    return false;
+  }
+
+  const String commandTopic = String("home/devices/") + commandTarget + "/commands";
+
+  Serial.printf("Pi Monitor: publishing set_interval to %s: %s\n",
+                commandTopic.c_str(), commandPayload);
+  const bool published = piMonitorMqttClient.publish(commandTopic.c_str(), commandPayload);
+
+  if (published) {
+    ++piMonitorCommandCount;
+    ++piMonitorSetIntervalCommandCount;
+    piMonitorLastCommandSentMs = millis();
+    piMonitorLastResponseDevice = commandTarget;
+    piMonitorLastResponseSummary = "";
+    piMonitorCommandStatus =
+        String("set ") + String(selectedPiMonitorSetIntervalSeconds()) + "s sent";
+    Serial.println("Pi Monitor: set_interval command published.");
+  } else {
+    piMonitorCommandStatus = "set_interval failed.";
+    Serial.println("Pi Monitor: set_interval publish failed.");
+  }
+
+  renderPiMonitor();
+  return published;
+}
+
 void stopPiMonitor() {
   if (piMonitorMqttClient.connected()) {
+    publishPiMonitorAvailability("offline");
     piMonitorMqttClient.disconnect();
     Serial.println("Pi Monitor: stopped.");
   }
@@ -525,6 +821,10 @@ void servicePiMonitor() {
 
   if (piMonitorMqttClient.connected()) {
     piMonitorMqttClient.loop();
+    if (millis() - piMonitorLastStatusPublishMs >=
+        PI_MONITOR_STATUS_PUBLISH_INTERVAL_MS) {
+      publishPiMonitorStatus();
+    }
   }
 }
 
@@ -538,6 +838,7 @@ void clearPiMonitorDevices() {
   piMonitorLastResponseDevice = "";
   piMonitorLastResponseSummary = "";
   piMonitorResponseCount = 0;
+  piMonitorLastCommandSentMs = 0;
   piMonitorMessageCount = 0;
   Serial.println("Pi Monitor: device list cleared.");
 }
@@ -576,14 +877,21 @@ void handlePiMonitorMessage(char* topic, byte* payload, unsigned int length) {
   device.topicKind = topicKind;
   device.lastSeenMs = millis();
 
+  const bool responseTopic = isPiMonitorResponseKind(topicKind);
+  const bool commandTargetUpdate = isPiMonitorCommandTargetUpdate(deviceId, topicKind);
+
   if (topicKind == "availability") {
     device.availability = payloadText.substring(0, 12);
     device.summary = "availability";
-  } else if (isPiMonitorResponseKind(topicKind)) {
+  } else if (responseTopic || commandTargetUpdate) {
     piMonitorLastResponseDevice = deviceId;
-    piMonitorLastResponseSummary = summarizeResponsePayload(payloadText);
+    piMonitorLastResponseSummary =
+        responseTopic ? summarizeResponsePayload(payloadText)
+                      : summarizeJsonPayload(topicKind, payloadText);
     ++piMonitorResponseCount;
-    piMonitorCommandStatus = String("response ") + String(piMonitorResponseCount);
+    piMonitorCommandStatus =
+        responseTopic ? String("response ") + String(piMonitorResponseCount)
+                      : String("target update ") + String(piMonitorResponseCount);
     device.summary = piMonitorLastResponseSummary;
     if (device.availability.length() == 0) {
       device.availability = "seen";

@@ -13,17 +13,19 @@ Start here if this repository is opened in a fresh Codex chat.
 1. Read this file, then read [notes.md](notes.md) and [todo.md](todo.md).
 2. Do not assume unused pins are safe. **Avoid using G8/G9 directly** for external I2C hardware on the Cardputer Adv; those pins share the internal I2C bus and caused keyboard failures during OLED testing.
 3. Priority #5 now includes a hardware-tested WiFi Connect screen that reads credentials from microSD `/config/wifi.txt`. Do not hardcode credentials, and keep `WiFi.begin` limited to that intentional flow.
-4. Priority #6 now has a hardware-tested MQTT `Pi Monitor` screen using Raspberry Pi settings from microSD `/config/pi.txt`, plus a hardware-tested first whitelisted `read_now` command publisher.
-5. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
-6. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
-7. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
-8. Build with `python -m platformio run` if `pio` is not on PATH.
-9. Run all guard scripts before claiming work is complete:
+4. Priority #6 now has a hardware-tested MQTT `Pi Monitor` screen using Raspberry Pi settings from microSD `/config/pi.txt`, hardware-tested Cardputer status/availability publishing, hardware-tested `read_now` and `set_interval` commands, and hardware-tested target selection.
+5. Priority #7 is using the M5Stack Unit PaHub v2.1 I2C expansion path. The first firmware step supports ENV III on PaHub channel 0; do not add U8g2 or an OLED menu item until that is hardware-tested.
+6. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
+7. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
+8. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
+9. Build with `python -m platformio run` if `pio` is not on PATH.
+10. Run all guard scripts before claiming work is complete:
 
 ```sh
 python tools/check_battery_trend.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
+python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
@@ -51,11 +53,11 @@ Current state:
 - Uses arrow keys and OK/Enter for menu navigation.
 - Uses Backspace as the return-to-menu key from feature screens.
 - Uses the built-in display as the only UI display.
-- Uses the Grove I2C port for the M5Stack ENV III Unit.
+- Uses the Grove I2C port for the M5Stack ENV III Unit, either directly or through M5Stack Unit PaHub v2.1 channel 0.
 - Uses microSD for voice memo storage.
 - RF Scan works with the NRF24L01 module and shows quiet channels for future NRF24 projects.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
-- Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, and publishes one whitelisted `read_now` command.
+- Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - Has no active ESP-NOW code.
 - Has no active external OLED display code.
 
@@ -76,7 +78,12 @@ Primary device:
 
 External module currently supported:
 
+- M5Stack Unit PaHub v2.1
+  - PCA9548AP I2C multiplexer
+  - Default I2C address: `0x70`
+  - Firmware uses a tiny direct selector helper; no extra PaHub library is required yet
 - M5Stack ENV III Unit
+  - Direct Grove or PaHub channel 0
 - Sensors used through `M5Unit-ENV`:
   - SHT30 for temperature and humidity
   - QMP6988 for air pressure and altitude estimate
@@ -94,7 +101,7 @@ Hardware intentionally not active right now:
 - Direct Raspberry Pi shell/admin control; Pi Monitor stays scoped to MQTT monitoring plus whitelisted JSON commands
 - IR, BLE, audio beyond voice memos, and other expansion hardware
 
-Future idea: add SSD1309 OLED support as a secondary display after choosing a safe pin plan or I2C expansion path. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
+Future idea: add SSD1309 OLED support as a secondary display on the M5Stack Unit PaHub v2.1 after the ENV III path is hardware-tested. Plan: ENV III on PaHub channel 0, OLED reserved for PaHub channel 1, PaHub default address `0x70`. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
 
 ## Software, Libraries, And Frameworks
 
@@ -206,8 +213,9 @@ File responsibilities:
 - [src/power_screen.cpp](src/power_screen.cpp): Battery/System screens and battery trend logic.
 - [src/wifi_connect.cpp](src/wifi_connect.cpp): SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - [src/wifi_screens.cpp](src/wifi_screens.cpp): Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
-- [src/pi_monitor.cpp](src/pi_monitor.cpp): SD-backed Raspberry Pi MQTT config, subscribe flow, compact device monitor screen, and whitelisted `read_now` command publisher.
+- [src/pi_monitor.cpp](src/pi_monitor.cpp): SD-backed Raspberry Pi MQTT config, subscribe flow, compact device monitor screen, Cardputer status/availability publisher, and whitelisted command publishers.
 - [src/voice_memos.cpp](src/voice_memos.cpp): microSD WAV recording, listing, playback, and delete flow.
+- [src/i2c_hub.cpp](src/i2c_hub.cpp): optional M5Stack Unit PaHub v2.1 detection and channel selection for shared Grove I2C.
 - [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
 - [src/rf_scanner.cpp](src/rf_scanner.cpp): NRF24 radio setup and RF channel scanner.
 - [src/level_tool.cpp](src/level_tool.cpp): BMI270 level/crosshair tool.
@@ -355,17 +363,25 @@ Rules for the WiFi Connect feature:
 
 Behavior:
 
-- Raspberry Pi MQTT monitor with one whitelisted command action.
+- Raspberry Pi MQTT monitor with two whitelisted command actions.
 - Requires Wi-Fi to already be connected through WiFi Connect.
 - Reads Raspberry Pi MQTT settings from a microSD card file.
 - Connects to the MQTT broker with `PubSubClient`.
 - Subscribes to `home/#` so terminal-published test messages are visible.
 - Treats `home/devices/<device>/<kind>` topics as structured device-list updates.
+- Publishes retained Cardputer availability to `home/devices/scoober-cardputer/availability`.
+- Publishes retained Cardputer status JSON to `home/devices/scoober-cardputer/status` after MQTT connect and about once per minute while Pi Monitor is open.
+- Uses an MQTT last-will so unexpected disconnects can mark Cardputer availability as `offline`.
+- User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
 - Displays MQTT status, broker address, message count, last topic/payload, command response display, and a compact device list.
 - Displays the most recent command status on the monitor screen.
-- Shows `home/devices/<device>/responses` or `home/devices/<device>/response` messages on a clearer `Resp:` line.
+- Shows `home/devices/<device>/responses`, nested response topics, or post-command updates from `command_target` on a clearer `Resp:` line.
+- Current caveat: user hardware testing on 2026-08-06 still showed `Resp: waiting.`, so `Last` / `Pay` remain the reliable command-feedback view for now.
 - Parses small JSON status/telemetry payloads with ArduinoJson.
 - `C` publishes `{"command":"read_now"}` to `home/devices/<command_target>/commands`.
+- `T` cycles the command target through `command_target` and discovered device IDs.
+- `I` cycles fixed `set_interval` choices: 10, 30, 60, and 300 seconds.
+- `S` publishes `{"command":"set_interval","seconds":<selected>}` to `home/devices/<command_target>/commands`.
 - Does not publish arbitrary command text, run shell actions, or perform Raspberry Pi admin actions.
 - Disconnects MQTT when leaving the screen.
 - OK/Enter retries MQTT connection.
@@ -392,7 +408,9 @@ Rules for Pi Monitor:
 - Reuse WiFi Connect for Wi-Fi; do not add another Wi-Fi credential path.
 - Do not hardcode Pi IPs, MQTT settings, Wi-Fi credentials, or MQTT passwords in source.
 - Do not commit real `pi.txt` files. This repo ignores `/config/pi.txt` and `/pi.txt` in case local copies are created while testing.
-- Keep command publishing whitelisted and explicit. The first allowed command is `read_now` to `home/devices/<command_target>/commands`.
+- Keep command publishing whitelisted and explicit. The allowed commands are `read_now` and fixed-choice `set_interval` to `home/devices/<command_target>/commands`.
+- Do not add free-form interval entry; keep `set_interval` seconds limited to firmware-defined choices.
+- Cardputer may publish only scoped identity/status topics for its own configured `device_id`.
 - User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
 - User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
 
@@ -438,6 +456,10 @@ Voice memo notes:
 Behavior:
 
 - Reads the M5Stack ENV III Unit over Grove I2C.
+- Supports direct Grove wiring and the M5Stack Unit PaHub v2.1 path.
+- Detects the PaHub at default address `0x70`.
+- Selects ENV III on PaHub channel 0 before sensor initialization and reads.
+- Falls back to direct Grove behavior when no PaHub is detected.
 - Uses the global Arduino `Wire` object for ENV III because this path reads both SHT30 and QMP6988 correctly on the Cardputer Adv.
 - Shows:
   - Temperature in C and F
@@ -447,7 +469,7 @@ Behavior:
   - Sensor status
 - Optional CSV logging to microSD.
 - Refreshes about once per second.
-- If the unit is unplugged or not found, the screen shows `ENV III not found` and retries every few seconds.
+- If the unit is unplugged or not found, the screen shows `ENV III not found`, shows the active I2C path, and retries every few seconds.
 - Supports partial sensor availability. If only SHT30 or only QMP6988 responds, the screen can still show the readings it can get.
 - Press `L` to name and start logging; press `L` again while logging to stop.
 - The log-name screen accepts letters, numbers, spaces, `_`, and `-`.
@@ -463,10 +485,13 @@ ENV constants:
 - SDA: `ENV_I2C_SDA_PIN = 2`
 - SCL: `ENV_I2C_SCL_PIN = 1`
 - I2C frequency: `ENV_I2C_FREQUENCY = 400000`
+- PaHub address: `I2C_HUB_ADDRESS = 0x70`
+- ENV III PaHub channel: `I2C_HUB_ENV_CHANNEL = 0`
+- OLED reserved PaHub channel: `I2C_HUB_OLED_CHANNEL = 1`
 - Refresh: `ENV_REFRESH_INTERVAL_MS = 1000`
 - Retry: `ENV_RETRY_INTERVAL_MS = 3000`
 
-ENV wiring:
+ENV wiring, direct Grove:
 
 - Easiest: plug ENV III into the Cardputer Grove port.
 - If wiring manually:
@@ -474,6 +499,14 @@ ENV wiring:
   - GND -> Grove GND
   - SDA -> Grove SDA
   - SCL -> Grove SCL
+
+ENV wiring, PaHub path:
+
+- Plug the Unit PaHub v2.1 input into the Cardputer Grove port.
+- Leave the PaHub DIP switch at the default address `0x70` for the first test.
+- Plug ENV III into PaHub channel 0.
+- Keep PaHub channel 1 reserved for the future SSD1309 OLED proof.
+- Do not connect the OLED to G8/G9.
 
 ### RF Scan
 
@@ -612,6 +645,10 @@ Known pins used by current firmware:
 | NRF24 CE | G4 | Dedicated NRF24 chip-enable |
 | ENV III SDA | G2 / Grove SDA | External Grove I2C |
 | ENV III SCL | G1 / Grove SCL | External Grove I2C |
+| Unit PaHub v2.1 input | G2/G1 Grove | Optional external I2C multiplexer |
+| Unit PaHub v2.1 address | 0x70 | Default DIP-switch address |
+| ENV III via PaHub | Channel 0 | First Priority #7 hardware test |
+| OLED via PaHub | Channel 1 | Reserved; no active OLED firmware yet |
 | Internal Cardputer I2C | G8/G9 | Do not use directly for external I2C modules |
 | Download mode | G0 | Hold while applying USB/power if upload fails |
 
@@ -639,10 +676,13 @@ Current active communication paths:
   - Broker settings come from microSD `/config/pi.txt`.
   - Subscribes to `home/#` for read-only monitoring.
   - Uses `home/devices/<device>/<kind>` topics to update the compact device list.
-  - Publishes only the whitelisted `read_now` JSON command to `home/devices/<command_target>/commands`.
+  - Publishes Cardputer availability/status under `home/devices/scoober-cardputer/...`.
+  - Publishes only whitelisted `read_now` and fixed-choice `set_interval` JSON commands to `home/devices/<selected_target>/commands`.
 - **I2C**
-  - Grove external I2C is used by ENV III on G2/G1.
-  - Internal I2C is used by Cardputer hardware through M5 libraries.
+- Grove external I2C is used by ENV III on G2/G1.
+- Optional Unit PaHub v2.1 support detects the mux at `0x70` and selects ENV III on channel 0.
+- OLED is reserved for PaHub channel 1, but no active OLED firmware is present yet.
+- Internal I2C is used by Cardputer hardware through M5 libraries.
 - **SPI**
   - Used for microSD access.
   - Used by the RF Scan feature on the Cardputer-Adv EXT SPI pins.
@@ -679,17 +719,31 @@ First milestone:
 - Keep Backspace return-to-menu behavior.
 - Fail gracefully when Wi-Fi, SD config, or the broker is unavailable.
 
-First command action:
+Whitelisted command actions:
 
 - Add `command_target` to `/config/pi.txt`.
 - Press `C` on Pi Monitor to publish `{"command":"read_now"}`.
+- Press `T` to cycle through the configured target and discovered devices.
+- Press `I` to cycle fixed interval choices: 10, 30, 60, and 300 seconds.
+- Press `S` to publish `{"command":"set_interval","seconds":<selected>}`.
 - Publish to `home/devices/<command_target>/commands`.
-- Keep command publishing scoped to this explicit whitelisted command.
-- Done and confirmed working on Cardputer hardware on 2026-07-30.
+- Keep command publishing scoped to these explicit whitelisted commands.
+- `read_now` is done and confirmed working on Cardputer hardware on 2026-07-30.
+- `set_interval` was added and confirmed working on Cardputer hardware on 2026-08-15.
+- Target selection was added and confirmed working on Cardputer hardware on 2026-08-15.
+
+Cardputer MQTT identity:
+
+- Publish retained `online` / `offline` availability to `home/devices/scoober-cardputer/availability`.
+- Publish retained status JSON to `home/devices/scoober-cardputer/status`.
+- Status includes device id, firmware version, uptime, Wi-Fi RSSI, free heap, and available battery/power hints.
+- Refresh status about once per minute while Pi Monitor is open.
+- Done and confirmed working on Cardputer hardware on 2026-08-15.
 
 Response display:
 
 - Shows response topics such as `home/devices/<device>/responses` on a dedicated `Resp:` line.
+- Also treats fresh status/telemetry from `command_target` after `read_now` as command feedback, because some small device nodes answer by publishing new telemetry instead of a separate response topic.
 - Summarizes common JSON response fields such as `ok`, `success`, `status`, `command`, `message`, and `error`.
 - Keeps the generic `Last` / `Pay` lines visible for raw topic troubleshooting.
 
@@ -815,22 +869,22 @@ Guard script:
 
 Highest priority:
 
-1. Hardware-test the new `Resp:` command response display.
-2. Add target selection for known devices once there is more than one command target.
-3. Keep existing local utility features stable while adding Pi networking.
+1. Hardware-test ENV III through Unit PaHub v2.1 channel 0 with the PaHub at default address `0x70`.
+2. Verify Environment still reads temperature/humidity/pressure and keyboard navigation still works.
+3. After that passes, add only an SSD1309 OLED proof-of-life screen on PaHub channel 1.
 
 Good near-term improvements:
 
-1. Publish Cardputer status/availability as `scoober-cardputer`.
-2. Refine command response display after hardware feedback.
-3. Add another safe command action such as `set_interval` after the `read_now` publish/response flow works.
+1. Keep existing local utility features stable while adding Pi networking.
+2. Revisit `Resp:` only if future commands need explicit success/failure acknowledgments; `Last` / `Pay` are working for now.
+3. Add MQTT authentication after live Mosquitto configuration is confirmed.
 4. Add timestamps if a reliable time source is introduced.
 
 Future bigger milestones:
 
 1. Broader Raspberry Pi command center integration.
 2. MQTT authentication after live Mosquitto configuration is confirmed.
-3. Future idea: optional external display support only after a safe pin/I2C expansion plan is chosen.
+3. Future idea: optional external display support only after a safe pin plan or I2C expansion path is chosen.
 4. More hardware tools using IR, Grove, BLE, or other Cardputer expansion options.
 
 ## Build Instructions
@@ -976,8 +1030,14 @@ After upload:
 - Pi Monitor connects to the configured MQTT broker when `/config/pi.txt` is valid.
 - Pi Monitor increments `Msgs` and shows the last topic/payload for incoming `home/#` messages.
 - Pi Monitor updates the device list for `home/devices/<device>/<kind>` topics.
+- Pi Monitor publishes Cardputer availability to `home/devices/scoober-cardputer/availability` and status JSON to `home/devices/scoober-cardputer/status`.
+- User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
 - Pi Monitor publishes `read_now` to `home/devices/<command_target>/commands` with `C` when `command_target=esp32-c3-test` is present in `/config/pi.txt`.
-- Pi Monitor shows response topics such as `home/devices/<device>/responses` on a dedicated `Resp:` line.
+- Pi Monitor cycles command targets with `T`.
+- User confirmed Pi Monitor target selection works on hardware on 2026-08-15.
+- Pi Monitor cycles fixed `set_interval` choices with `I` and publishes the selected interval with `S`.
+- Pi Monitor shows response topics such as `home/devices/<device>/responses`, nested response topics, and post-command `command_target` updates on a dedicated `Resp:` line.
+- User reported on 2026-08-06 that `Resp:` still stayed on `waiting`; this is not blocking while `Last` / `Pay` and telemetry show command results.
 - Pi Monitor disconnects MQTT with `D`, clears/reconnects with `R`, and retries connection with OK/Enter.
 - User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
 - User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
@@ -1013,6 +1073,7 @@ After upload:
 - Use download mode if upload fails.
 - Use `python -m platformio` if `pio` is not recognized.
 - If the keyboard stops working after adding hardware, immediately suspect an I2C pin conflict.
-- If Environment says `ENV III not found`, confirm the unit is in the Grove port and wait for retry.
+- If Environment says `ENV III not found`, confirm the unit is in the Grove port or PaHub channel 0 and wait for retry.
+- If using Unit PaHub v2.1, leave the DIP switch at default `0x70` for this firmware step.
 - If Voice Memos shows SD errors, confirm the microSD card is inserted and formatted.
 - If needed, restore factory firmware with M5Burner.

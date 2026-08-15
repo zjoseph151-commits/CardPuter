@@ -22,7 +22,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/power_screen.cpp`: Battery/System screens and battery trend logic.
 - `src/wifi_connect.cpp`: SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - `src/wifi_screens.cpp`: Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
-- `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, compact device monitor screen, and whitelisted `read_now` command publisher.
+- `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, compact device monitor screen, Cardputer status/availability publisher, and whitelisted `read_now` command publisher.
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
 - `src/rf_scanner.cpp`: NRF24 setup and RF channel scanner.
@@ -426,11 +426,19 @@ Current state:
 - No U8g2 dependency.
 - README keeps a future idea note.
 - `tools/check_oled_test.py` ensures the inactive OLED feature does not return accidentally.
+- Priority #7 planning started on 2026-08-15 in `docs/superpowers/plans/2026-08-15-external-display-revisit.md`.
+- `tools/check_external_display_revisit.py` keeps the external-display safety notes and inactive firmware state explicit.
+- User chose the M5Stack Unit PaHub v2.1 on 2026-08-15.
+- The PaHub uses a PCA9548AP I2C mux; project plan keeps the default address `0x70`.
+- First firmware foundation detects the PaHub at `0x70`, selects ENV III on PaHub channel 0, and falls back to direct Grove if the hub is missing.
+- OLED reserved for PaHub channel 1, but OLED firmware remains inactive.
 
 Future OLED guidance:
 
 - Do not use G8/G9 directly for external I2C.
-- Consider I2C mux/buffer/expander or a different display interface if Grove must remain available.
+- Use the M5Stack Unit PaHub v2.1 path when ENV III and OLED need to stay connected together.
+- ENV III on PaHub channel 0; OLED reserved for PaHub channel 1.
+- Consider a different display interface only after checking for microSD, NRF24, keyboard, and internal hardware conflicts.
 - Reintroduce display support only when there is a deliberate pin plan.
 
 ## ESP-NOW And RC Notes
@@ -458,6 +466,11 @@ The first firmware pass was added on 2026-07-27.
 User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
 The first whitelisted `read_now` command publisher was added on 2026-07-30.
 User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
+User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
+The fixed-choice `set_interval` command publisher was added on 2026-08-15.
+User confirmed Pi Monitor `set_interval` command publishing works on Cardputer hardware on 2026-08-15.
+Target selection was added on 2026-08-15.
+User confirmed Pi Monitor target selection works on Cardputer hardware on 2026-08-15.
 
 Decision:
 
@@ -491,24 +504,30 @@ Current Pi Monitor firmware behavior:
 - Uses `PubSubClient` for MQTT and `ArduinoJson` for small status/telemetry summaries.
 - Connects to the configured MQTT broker.
 - Subscribes to `home/#` for read-only visibility while testing.
+- Publishes retained Cardputer availability to `home/devices/scoober-cardputer/availability`.
+- Publishes retained Cardputer status JSON to `home/devices/scoober-cardputer/status` after MQTT connect and about once per minute while Pi Monitor is open.
+- Uses an MQTT last-will so unexpected disconnects can mark Cardputer availability as `offline`.
+- User confirmed status/availability publishing works on Cardputer hardware on 2026-08-15.
 - Shows MQTT connection status, broker, message count, last topic/payload, command response display, and a compact device list.
 - Treats `home/devices/<device>/<kind>` topics as structured device-list updates.
-- Shows `home/devices/<device>/responses` or `home/devices/<device>/response` messages on a dedicated `Resp:` line.
+- Shows `home/devices/<device>/responses`, nested response topics, or post-command updates from `command_target` on a dedicated `Resp:` line.
+- User reported on 2026-08-06 that `Resp:` still stayed on `waiting`; use `Last` / `Pay` as the reliable command-feedback view unless explicit acknowledgments become important.
 - Stores up to `MAX_PI_MONITOR_DEVICES = 6` devices and displays up to `PI_MONITOR_VISIBLE_DEVICES = 1` with the command status line visible.
 - Fails gracefully when Wi-Fi, SD config, or broker connection is missing.
 - Backspace returns to the menu and stops the MQTT connection.
 - OK retries MQTT connection.
 - `C` publishes `{"command":"read_now"}` to `home/devices/<command_target>/commands`.
+- `T` cycles the command target through `command_target` and discovered device IDs, excluding the Cardputer's own MQTT identity.
+- `I` cycles fixed `set_interval` choices: 10, 30, 60, and 300 seconds.
+- `S` publishes `{"command":"set_interval","seconds":<selected>}` to `home/devices/<command_target>/commands`.
 - `R` clears the device list and reconnects.
 - `D` disconnects MQTT.
 - Does not publish arbitrary command text, shell commands, or Raspberry Pi admin actions.
 
-Later milestones:
+Remaining Priority #6 work:
 
-- Hardware-test the dedicated `Resp:` command response display.
-- Add target selection for known devices once there is more than one command target.
-- Publish Cardputer status/availability as `scoober-cardputer`.
-- Add another safe command action for the ESP32-C3 test node, such as `set_interval`.
+- Treat Priority #6 as complete enough unless the Pi-side listener needs new command support.
+- Revisit `Resp:` only if future commands need explicit success/failure acknowledgments.
 - Consider MQTT authentication after live Mosquitto configuration is confirmed on the Raspberry Pi.
 
 ## Build And Verification Notes

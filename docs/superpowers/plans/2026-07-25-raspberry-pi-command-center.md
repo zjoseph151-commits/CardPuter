@@ -39,7 +39,7 @@ Rejected for the first milestone:
 
 Add a read-only `Pi Monitor` screen.
 
-Implementation note: the first firmware pass was added on 2026-07-27. User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29. The first whitelisted `read_now` command publisher was added and confirmed working on Cardputer hardware on 2026-07-30.
+Implementation note: the first firmware pass was added on 2026-07-27. User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29. The first whitelisted `read_now` command publisher was added and confirmed working on Cardputer hardware on 2026-07-30. Cardputer status/availability publishing was added on 2026-08-08 and confirmed working on hardware on 2026-08-15. Fixed-choice `set_interval` publishing was added and confirmed working on hardware on 2026-08-15. Target selection was added and confirmed working on hardware on 2026-08-15.
 
 The first firmware version should:
 
@@ -66,15 +66,22 @@ command_target=esp32-c3-test
 
 ## First Command Action
 
-Add one whitelisted MQTT command publisher before adding any target picker or free-form controls.
+Add whitelisted MQTT command publishers before adding any target picker or free-form controls.
 
 - Press `C` in Pi Monitor to publish `{"command":"read_now"}`.
+- Press `T` to cycle the command target through `command_target` and discovered device IDs.
+- Press `I` to cycle fixed `set_interval` choices: 10, 30, 60, and 300 seconds.
+- Press `S` in Pi Monitor to publish `{"command":"set_interval","seconds":<selected>}`.
 - Publish only to `home/devices/<command_target>/commands`.
 - Keep `home/#` subscribed so message count and last topic/payload still show incoming responses or telemetry.
-- Show response topics such as `home/devices/<device>/responses` on a dedicated `Resp:` line.
+- Show response topics such as `home/devices/<device>/responses`, nested response topics, or post-command updates from `command_target` on a dedicated `Resp:` line.
+- User reported on 2026-08-06 that `Resp:` still stayed on `waiting`; do not block the milestone on this while `Last` / `Pay` show command feedback.
 - Do not publish arbitrary command text.
+- Do not accept free-form interval input for `set_interval`.
 - Do not implement direct shell control, remote command execution, or Pi admin actions.
-- Confirmed working on Cardputer hardware on 2026-07-30.
+- `read_now` was confirmed working on Cardputer hardware on 2026-07-30.
+- `set_interval` was confirmed working on Cardputer hardware on 2026-08-15.
+- Target selection was confirmed working on Cardputer hardware on 2026-08-15.
 
 ## First MQTT Identity
 
@@ -96,16 +103,24 @@ Suggested status payload:
 {"device":"scoober-cardputer","firmware_version":"v0.1.0","uptime_ms":123456,"wifi_rssi":-57,"free_heap":180000}
 ```
 
+Availability topic:
+
+```text
+home/devices/scoober-cardputer/availability
+```
+
+Availability payloads are retained `online` / `offline`, with an MQTT last-will set to `offline`.
+User confirmed status/availability publishing works on Cardputer hardware on 2026-08-15.
+
 ## Later Milestones
 
 After the read-only monitor and first command work on hardware:
 
-1. Add target selection for known devices.
-2. Hardware-test command response display from `home/devices/<device>/responses` if the generic `Last`/`Pay` display is not enough.
-3. Publish Cardputer status/availability to MQTT.
-4. Add another safe command action for the ESP32-C3 test node, such as `set_interval`.
-5. Consider a Pi-side JSON API only if the Cardputer needs dashboard data that MQTT does not already provide.
-6. Revisit MQTT authentication after Mosquitto configuration is confirmed on the Raspberry Pi.
+1. Treat Priority #6 as complete enough unless the Pi-side listener needs new command support.
+2. Revisit command response display only if the generic `Last`/`Pay` display is not enough for a future command.
+3. Revisit Pi-side command support only if a target does not handle the selected command.
+4. Consider a Pi-side JSON API only if the Cardputer needs dashboard data that MQTT does not already provide.
+5. Revisit MQTT authentication after Mosquitto configuration is confirmed on the Raspberry Pi.
 
 ## Acceptance Checks
 
@@ -117,8 +132,13 @@ Before calling the first firmware milestone complete:
 - Correct broker settings show MQTT connected.
 - Incoming `home/#` messages increment `Msgs` and update `Last`/`Pay`.
 - Incoming `home/devices/<device>/<kind>` messages update the device list.
-- Incoming `home/devices/<device>/responses` messages update `Resp:`.
+- Incoming `home/devices/<device>/responses`, nested response topics, or post-command `command_target` updates update `Resp:`.
+- Cardputer publishes retained status to `home/devices/scoober-cardputer/status`.
+- Cardputer publishes retained availability to `home/devices/scoober-cardputer/availability`.
 - With `command_target=esp32-c3-test`, pressing `C` publishes `read_now` to `home/devices/<command_target>/commands`.
+- Pressing `T` cycles through `command_target` and discovered device IDs, excluding the Cardputer's own MQTT identity.
+- User confirmed target selection works on Cardputer hardware on 2026-08-15.
+- Pressing `I` cycles fixed `set_interval` choices and pressing `S` publishes the selected interval to `home/devices/<command_target>/commands`.
 - Backspace returns to the menu.
 - No Wi-Fi or MQTT passwords are hardcoded in source.
 - Real local `/config/pi.txt` files are ignored by Git.

@@ -34,10 +34,14 @@ def test_priority_6_plan_is_documented():
         "home/devices/<device>/<kind>",
         "home/devices/<command_target>/commands",
         "read_now",
+        "set_interval",
         "message count",
         "last topic/payload",
         "command response display",
         "home/devices/<device>/responses",
+        "home/devices/scoober-cardputer/status",
+        "home/devices/scoober-cardputer/availability",
+        "target selection",
         "Do not implement direct shell control",
     ]
 
@@ -48,11 +52,40 @@ def test_priority_6_plan_is_documented():
     response_tokens = [
         "command response display",
         "home/devices/<device>/responses",
+        "command_target",
         "Resp:",
     ]
     require_tokens(README, response_tokens, "README Pi response display")
     require_tokens(NOTES, response_tokens, "notes Pi response display")
     require_tokens(TODO, response_tokens, "TODO Pi response display")
+    status_tokens = [
+        "Cardputer status/availability",
+        "home/devices/scoober-cardputer/status",
+        "home/devices/scoober-cardputer/availability",
+    ]
+    require_tokens(PLAN, status_tokens, "Priority #6 status publishing")
+    require_tokens(README, status_tokens, "README Pi status publishing")
+    require_tokens(NOTES, status_tokens, "notes Pi status publishing")
+    require_tokens(TODO, status_tokens, "TODO Pi status publishing")
+    command_tokens = [
+        "fixed",
+        "set_interval",
+        "10, 30, 60, and 300 seconds",
+        "home/devices/<command_target>/commands",
+    ]
+    require_tokens(PLAN, command_tokens, "Priority #6 set_interval command")
+    require_tokens(README, command_tokens, "README Pi set_interval command")
+    require_tokens(NOTES, command_tokens, "notes Pi set_interval command")
+    require_tokens(TODO, command_tokens, "TODO Pi set_interval command")
+    target_tokens = [
+        "target selection",
+        "discovered device",
+        "command_target",
+    ]
+    require_tokens(PLAN, target_tokens, "Priority #6 target selection")
+    require_tokens(README, target_tokens, "README Pi target selection")
+    require_tokens(NOTES, target_tokens, "notes Pi target selection")
+    require_tokens(TODO, target_tokens, "TODO Pi target selection")
 
 
 def test_local_pi_config_paths_are_ignored():
@@ -79,6 +112,9 @@ def test_pi_monitor_firmware_is_implemented():
         "connectPiMonitorMqtt()",
         "disconnectPiMonitorMqtt()",
         "publishPiMonitorReadNowCommand()",
+        "publishPiMonitorSetIntervalCommand()",
+        "cyclePiMonitorCommandTarget()",
+        "cyclePiMonitorSetInterval()",
         "stopPiMonitor()",
         "servicePiMonitor()",
         "clearPiMonitorDevices()",
@@ -89,11 +125,42 @@ def test_pi_monitor_firmware_is_implemented():
         'key == "command_target"',
         'subscribe("home/#")',
         "PI_MONITOR_READ_NOW_PAYLOAD",
-        'String("home/devices/") + piMonitorCommandTarget + "/commands"',
+        "PI_MONITOR_SET_INTERVAL_OPTIONS_SECONDS",
+        "PI_MONITOR_STATUS_PUBLISH_INTERVAL_MS",
+        "piMonitorSelectedCommandTarget",
+        "activePiMonitorCommandTarget()",
+        "buildPiMonitorTargetCandidates",
+        "isPiMonitorOwnDevice",
+        'key == "command_target"',
+        "key == 't' || key == 'T'",
+        'String("home/devices/") + commandTarget + "/commands"',
+        "Tgt: %s",
         "piMonitorMqttClient.publish(commandTopic.c_str(), PI_MONITOR_READ_NOW_PAYLOAD)",
+        "buildPiMonitorSetIntervalPayload",
+        'document["command"] = "set_interval"',
+        'document["seconds"] = selectedPiMonitorSetIntervalSeconds()',
+        "piMonitorMqttClient.publish(commandTopic.c_str(), commandPayload)",
         "read_now sent",
+        "set_interval command published",
+        "set_interval failed.",
         "No command target.",
+        "buildPiMonitorDeviceTopic",
+        'buildPiMonitorDeviceTopic("availability")',
+        'buildPiMonitorDeviceTopic("status")',
+        "publishPiMonitorAvailability",
+        "publishPiMonitorStatus",
+        'connect(clientId.c_str(), availabilityTopic.c_str(), 0, true,',
+        'publishPiMonitorAvailability("online")',
+        'publishPiMonitorAvailability("offline")',
+        'piMonitorMqttClient.publish(availabilityTopic.c_str(), availability, true)',
+        'piMonitorMqttClient.publish(statusTopic.c_str(), statusPayload, true)',
+        'document["firmware_version"]',
+        'document["wifi_rssi"]',
+        'document["free_heap"]',
         "isPiMonitorResponseKind(topicKind)",
+        "isPiMonitorCommandTargetUpdate(deviceId, topicKind)",
+        "PI_MONITOR_RESPONSE_WINDOW_MS",
+        "piMonitorLastCommandSentMs",
         "summarizeResponsePayload(payloadText)",
         "piMonitorLastResponseSummary",
         "piMonitorResponseCount",
@@ -118,15 +185,20 @@ def test_pi_monitor_firmware_is_implemented():
     )
 
 
-def test_pi_monitor_command_publisher_is_whitelisted():
-    assert PI_MONITOR_SOURCE.count(".publish(") == 1, (
-        "Pi Monitor should only publish the whitelisted read_now command"
+def test_pi_monitor_publishing_is_scoped():
+    assert PI_MONITOR_SOURCE.count(".publish(") == 4, (
+        "Pi Monitor should only publish availability, status, read_now, and set_interval"
     )
+    assert PI_MONITOR_SOURCE.count(
+        "piMonitorMqttClient.publish(commandTopic.c_str(), PI_MONITOR_READ_NOW_PAYLOAD)"
+    ) == 1, "Pi Monitor should have one command publish path"
+    assert PI_MONITOR_SOURCE.count(
+        "piMonitorMqttClient.publish(commandTopic.c_str(), commandPayload)"
+    ) == 1, "Pi Monitor should have one set_interval publish path"
 
     forbidden_source_tokens = [
         '"home/devices/+/commands"',
         '"home/devices/+/responses"',
-        "set_interval",
         "ssh",
         "shell",
         "sudo",
@@ -143,5 +215,5 @@ if __name__ == "__main__":
     test_priority_6_plan_is_documented()
     test_local_pi_config_paths_are_ignored()
     test_pi_monitor_firmware_is_implemented()
-    test_pi_monitor_command_publisher_is_whitelisted()
+    test_pi_monitor_publishing_is_scoped()
     print("Raspberry Pi command center plan checks passed.")

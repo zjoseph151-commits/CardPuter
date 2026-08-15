@@ -52,6 +52,11 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
 - First whitelisted `read_now` command publisher added on 2026-07-30.
 - User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
+- User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
+- Fixed-choice `set_interval` command publisher added on 2026-08-15.
+- User confirmed Pi Monitor `set_interval` command publishing works on hardware on 2026-08-15.
+- Target selection added on 2026-08-15.
+- User confirmed Pi Monitor target selection works on hardware on 2026-08-15.
 - Transport decision: Wi-Fi MQTT, because the Raspberry Pi learning repo already uses an MQTT broker/listener and `home/devices/<device>/...` topics.
 - First config file: microSD `/config/pi.txt`.
 - Config format:
@@ -67,32 +72,61 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - show message count, last topic/payload, and command response display for incoming `home/#` messages
   - show a compact device list/status view
   - update the device list for `home/devices/<device>/<kind>` topics
-  - show response topics such as `home/devices/<device>/responses` on a dedicated `Resp:` line
+  - show response topics such as `home/devices/<device>/responses`, nested response topics, and post-command `command_target` updates on a dedicated `Resp:` line
+  - publish Cardputer availability to `home/devices/scoober-cardputer/availability`
+  - publish Cardputer status JSON to `home/devices/scoober-cardputer/status`
   - publish whitelisted `read_now` to `home/devices/<command_target>/commands` with `C`
+  - cycle command targets with `T`
+  - cycle fixed `set_interval` choices with `I`: 10, 30, 60, and 300 seconds
+  - publish whitelisted `set_interval` to `home/devices/<command_target>/commands` with `S`
   - fail gracefully when Wi-Fi, SD config, or broker connection is missing
   - keep Backspace return-to-menu behavior
 - Controls:
   - OK retries MQTT connection
   - `C` publishes `{"command":"read_now"}` to the configured command target
+  - `T` cycles command target between configured and discovered devices
+  - `I` cycles fixed `set_interval` choices
+  - `S` publishes `{"command":"set_interval","seconds":<selected>}` to the configured command target
   - `R` clears the device list and reconnects
   - `D` disconnects MQTT
 - Hardware test checklist:
   - MQTT connect and incoming message display confirmed on hardware on 2026-07-29
   - `read_now` command publishing confirmed on hardware on 2026-07-30
+  - Cardputer status/availability publishing confirmed on hardware on 2026-08-15
+  - `set_interval` command publishing confirmed on hardware on 2026-08-15
+  - target selection confirmed on hardware on 2026-08-15
+  - `Resp:` still stayed on `waiting` during 2026-08-06 hardware testing; not blocking while `Last` / `Pay` show command feedback
   - missing `/config/pi.txt`, Wi-Fi disconnected, and wrong broker IP/port still worth spot-checking after future edits
 - Do not implement direct shell control, remote command execution, Pi admin actions, arbitrary command entry, or risky commands.
-- Next Priority #6 test step should verify the new `Resp:` command response display on hardware.
-- Later command actions can add target selection and `set_interval` after response visibility feels clear on hardware.
+- Priority #6 is complete enough unless the Pi-side listener needs new command support.
+- Revisit `Resp:` only if future commands need explicit success/failure acknowledgments beyond `Last` / `Pay`.
 
 ## Priority 7: External Display Revisit
 
+- Priority #7 planning started on 2026-08-15.
 - External display support is intentionally inactive.
 - Do not use G8/G9 directly for external I2C.
+- Planning doc: `docs/superpowers/plans/2026-08-15-external-display-revisit.md`.
+- Guard: `tools/check_external_display_revisit.py`.
+- User chose the M5Stack Unit PaHub v2.1 on 2026-08-15.
+- Chosen hardware path:
+  - Cardputer Grove G2/G1 to Unit PaHub v2.1 input
+  - default PaHub address `0x70`
+  - ENV III on PaHub channel 0
+  - OLED reserved for PaHub channel 1
+- First firmware foundation added:
+  - detect PaHub at `0x70`
+  - select ENV III channel 0 before Environment init/read
+  - fall back to direct Grove when no PaHub is present
 - If revisiting SSD1309 OLED:
   - choose safe pins or use Grove with an I2C mux/expander
   - add U8g2 back only when the hardware plan is approved
   - add a simple proof-of-life screen first
   - verify keyboard navigation after wiring
+- Hardware test checklist:
+  - ENV III through Unit PaHub v2.1 channel 0: needs testing
+  - keyboard navigation with Unit PaHub v2.1 attached: needs testing
+  - direct Grove ENV III fallback after this change: worth spot-checking
 
 ## Done / Historical Milestones
 
@@ -134,4 +168,11 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
 - Added first whitelisted Pi Monitor command publisher: `C` sends `read_now` to `home/devices/<command_target>/commands`.
 - User confirmed Pi Monitor `read_now` command publishing works on Cardputer hardware on 2026-07-30.
-- Added dedicated Pi Monitor `Resp:` display for device response topics.
+- Broadened Pi Monitor `Resp:` display for response topics and post-command command target updates.
+- User reported `Resp:` still stayed on `waiting` on 2026-08-06; leave it as non-blocking unless explicit acknowledgments become important.
+- Added Cardputer MQTT status/availability publishing under `home/devices/scoober-cardputer/...`.
+- User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
+- Added fixed-choice Pi Monitor `set_interval` command publisher using `I` to cycle and `S` to send.
+- User confirmed Pi Monitor `set_interval` command publishing works on hardware on 2026-08-15.
+- Added Pi Monitor target selection using `T` to cycle configured and discovered devices.
+- User confirmed Pi Monitor target selection works on hardware on 2026-08-15.

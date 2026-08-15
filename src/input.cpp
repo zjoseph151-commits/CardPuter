@@ -113,8 +113,14 @@ void handleKeyboard() {
         renderPiMonitor();
       } else if (key == 'd' || key == 'D') {
         disconnectPiMonitorMqtt();
+      } else if (key == 't' || key == 'T') {
+        cyclePiMonitorCommandTarget();
       } else if (key == 'c' || key == 'C') {
         publishPiMonitorReadNowCommand();
+      } else if (key == 'i' || key == 'I') {
+        cyclePiMonitorSetInterval();
+      } else if (key == 's' || key == 'S') {
+        publishPiMonitorSetIntervalCommand();
       }
     }
 

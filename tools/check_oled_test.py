@@ -43,6 +43,7 @@ required_readme_tokens = [
     "SSD1309 OLED",
     "secondary display",
     "Avoid using G8/G9 directly",
+    "safe pin plan or I2C expansion path",
 ]
 
 for token in required_readme_tokens:

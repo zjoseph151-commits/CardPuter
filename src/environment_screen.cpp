@@ -20,7 +20,8 @@ void showEnvironment() {
 
   if (!envSensorInitialized) {
     contentCanvas.println("ENV III not found");
-    contentCanvas.println("Plug into Grove port.");
+    contentCanvas.printf("Path: %s\n", environmentI2cPathLabel().c_str());
+    contentCanvas.println("Use Grove/PaHub ch0.");
     contentCanvas.printf("SDA:G%d SCL:G%d\n", ENV_I2C_SDA_PIN, ENV_I2C_SCL_PIN);
     contentCanvas.println("Retrying...");
     commitContentDraw();
@@ -74,6 +75,16 @@ void renderEnvironmentLogName() {
 bool initEnvironmentSensor() {
   lastEnvironmentRetryMs = millis();
   Wire.begin(ENV_I2C_SDA_PIN, ENV_I2C_SCL_PIN, ENV_I2C_FREQUENCY);
+  detectI2cHub();
+
+  if (!selectEnvironmentI2cPath()) {
+    envSensorInitialized = false;
+    envHasTempHumidity = false;
+    envHasPressure = false;
+    envStatus = "PaHub select failed";
+    Serial.println("Environment: could not select ENV III I2C path.");
+    return false;
+  }
 
   envSht30Ready =
       envSht30.begin(&Wire, SHT3X_I2C_ADDR, ENV_I2C_SDA_PIN, ENV_I2C_SCL_PIN,
@@ -86,17 +97,18 @@ bool initEnvironmentSensor() {
   if (!envSensorInitialized) {
     envHasTempHumidity = false;
     envHasPressure = false;
-    envStatus = "ENV III not found";
-    Serial.println("Environment: ENV III not found on Grove I2C.");
+    envStatus = String("ENV III not found ") + environmentI2cPathLabel();
+    Serial.printf("Environment: ENV III not found on %s.\n",
+                  environmentI2cPathLabel().c_str());
     return false;
   }
 
   if (envSht30Ready && envQmp6988Ready) {
-    envStatus = "Connected";
+    envStatus = String("Connected ") + environmentI2cPathLabel();
   } else if (envSht30Ready) {
-    envStatus = "SHT30 only";
+    envStatus = String("SHT30 only ") + environmentI2cPathLabel();
   } else {
-    envStatus = "QMP6988 only";
+    envStatus = String("QMP6988 only ") + environmentI2cPathLabel();
   }
 
   Serial.printf("Environment: %s (SHT30=%s QMP6988=%s)\n", envStatus.c_str(),
@@ -110,6 +122,14 @@ bool readEnvironmentSensor() {
     if (millis() - lastEnvironmentRetryMs > ENV_RETRY_INTERVAL_MS) {
       initEnvironmentSensor();
     }
+    return false;
+  }
+
+  if (!selectEnvironmentI2cPath()) {
+    envSensorInitialized = false;
+    envHasTempHumidity = false;
+    envHasPressure = false;
+    envStatus = "PaHub select failed";
     return false;
   }
 
@@ -130,7 +150,7 @@ bool readEnvironmentSensor() {
   }
 
   if (updated) {
-    envStatus = "Connected";
+    envStatus = String("Connected ") + environmentI2cPathLabel();
     Serial.printf("Environment: %.1f C %.1f %% %.1f hPa\n", envTemperatureC,
                   envHumidityPercent, envPressureHpa);
   } else if (millis() - lastEnvironmentRetryMs > ENV_RETRY_INTERVAL_MS) {
