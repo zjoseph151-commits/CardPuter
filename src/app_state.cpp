@@ -11,6 +11,7 @@ const MenuItem MENU_ITEMS[] = {
     {"Pi Monitor", Screen::PiMonitor},
     {"Voice Memos", Screen::VoiceMemos},
     {"Environment", Screen::Environment},
+    {"OLED Test", Screen::OledTest},
     {"RF Scan", Screen::RfScanner},
     {"Level", Screen::LevelTool},
 };
@@ -18,6 +19,7 @@ const int MENU_ITEM_COUNT = sizeof(MENU_ITEMS) / sizeof(MENU_ITEMS[0]);
 
 SHT3X envSht30;
 QMP6988 envQmp6988;
+U8G2_SSD1309_128X64_NONAME0_F_HW_I2C oledDisplay(U8G2_R0, U8X8_PIN_NONE);
 RF24 nrf24Radio(NRF24_SPI_FREQUENCY);
 WiFiClient piMonitorWifiClient;
 PubSubClient piMonitorMqttClient(piMonitorWifiClient);
@@ -26,6 +28,8 @@ int selectedMenuIndex = 0;
 int menuScrollOffset = 0;
 unsigned long lastSystemRefreshMs = 0;
 unsigned long lastLevelRefreshMs = 0;
+unsigned long lastOledRefreshMs = 0;
+unsigned long lastOledInitAttemptMs = 0;
 unsigned long lastBatterySampleMs = 0;
 unsigned long lastEnvironmentRefreshMs = 0;
 unsigned long lastEnvironmentRetryMs = 0;
@@ -83,7 +87,10 @@ bool envSht30Ready = false;
 bool envQmp6988Ready = false;
 bool envHasTempHumidity = false;
 bool envHasPressure = false;
+bool envPressureInvalid = false;
 bool i2cHubDetected = false;
+bool oledInitialized = false;
+bool oledOnline = false;
 bool envLogging = false;
 bool nrf24Initialized = false;
 bool nrf24ChipConnected = false;
@@ -98,6 +105,8 @@ String pendingVoiceMemoDeletePath;
 String voiceMemoDeleteResultMessage;
 String envStatus = "Not initialized.";
 String i2cHubStatus = "Direct Grove";
+String oledStatus = "Not initialized.";
+String oledStatusLine;
 String envLogStatus;
 String envLogFileName;
 String envLogFilePath;
@@ -106,6 +115,7 @@ String nrf24Status = "Not initialized.";
 String rfScanStatus = "Not scanned.";
 uint32_t voiceMemoRecordedBytes = 0;
 uint32_t envLogSampleCount = 0;
+uint32_t oledDrawCount = 0;
 uint32_t rfScanCompletedAtMs = 0;
 unsigned long voiceMemoRecordingStartedMs = 0;
 unsigned long lastVoiceMemoRenderMs = 0;
@@ -115,11 +125,11 @@ int lastBatteryLevel = -1;
 int lastVbusVoltageMv = -1;
 int lastBatteryCurrentMa = 0;
 int i2cHubActiveChannel = -1;
+uint8_t oledActiveAddress = 0;
 m5::Power_Class::is_charging_t lastChargingStatus = m5::Power_Class::charge_unknown;
 float envTemperatureC = 0.0f;
 float envHumidityPercent = 0.0f;
 float envPressureHpa = 0.0f;
-float envAltitudeM = 0.0f;
 float smoothedLevelX = 0.0f;
 float smoothedLevelY = 0.0f;
 bool levelSmoothingInitialized = false;

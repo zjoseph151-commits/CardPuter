@@ -14,7 +14,7 @@ Start here if this repository is opened in a fresh Codex chat.
 2. Do not assume unused pins are safe. **Avoid using G8/G9 directly** for external I2C hardware on the Cardputer Adv; those pins share the internal I2C bus and caused keyboard failures during OLED testing.
 3. Priority #5 now includes a hardware-tested WiFi Connect screen that reads credentials from microSD `/config/wifi.txt`. Do not hardcode credentials, and keep `WiFi.begin` limited to that intentional flow.
 4. Priority #6 now has a hardware-tested MQTT `Pi Monitor` screen using Raspberry Pi settings from microSD `/config/pi.txt`, hardware-tested Cardputer status/availability publishing, hardware-tested `read_now` and `set_interval` commands, and hardware-tested target selection.
-5. Priority #7 is using the M5Stack Unit PaHub v2.1 I2C expansion path. The first firmware step supports ENV III on PaHub channel 0; do not add U8g2 or an OLED menu item until that is hardware-tested.
+5. Priority #7 is using the M5Stack Unit PaHub v2.1 I2C expansion path. ENV III remains on PaHub channel 0, and the SSD1309 OLED remains on PaHub channel 1 as a small OLED Status Dashboard plus diagnostics screen.
 6. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
 7. RF Scan is the active NRF24 feature. The user confirmed it is working fine on hardware on 2026-07-15.
 8. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks.
@@ -30,6 +30,7 @@ python tools/check_level_tool.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
+python tools/check_oled_status_dashboard.py
 python tools/check_power_status.py
 python tools/check_pi_command_center_plan.py
 python tools/check_saved_wifi.py
@@ -52,14 +53,17 @@ Current state:
 - Boots to a splash screen showing `M5 Cardputer Lab`, `Scoober`, and firmware version.
 - Uses arrow keys and OK/Enter for menu navigation.
 - Uses Backspace as the return-to-menu key from feature screens.
-- Uses the built-in display as the only UI display.
+- Uses the built-in display as the main control display.
+- Uses the SSD1309 OLED as a small secondary status display.
 - Uses the Grove I2C port for the M5Stack ENV III Unit, either directly or through M5Stack Unit PaHub v2.1 channel 0.
 - Uses microSD for voice memo storage.
 - RF Scan works with the NRF24L01 module and shows quiet channels for future NRF24 projects.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - Has no active ESP-NOW code.
-- Has no active external OLED display code.
+- Has an OLED Status Dashboard for the SSD1309 OLED on PaHub channel 1.
+- Keeps OLED Test as a diagnostics/proof-of-life screen.
+- User confirmed OLED Test works on hardware on 2026-08-15.
 
 ## Hardware Being Used
 
@@ -86,22 +90,22 @@ External module currently supported:
   - Direct Grove or PaHub channel 0
 - Sensors used through `M5Unit-ENV`:
   - SHT30 for temperature and humidity
-  - QMP6988 for air pressure and altitude estimate
+  - QMP6988 for air pressure
 
 Optional hardware:
 
 - microSD card for Voice Memos
 - USB-C data cable for upload and serial monitor
 - NRF24L01+ PA+LNA module with adapter/breakout for RF Scan
+- SSD1309 OLED on PaHub channel 1 for the OLED Status Dashboard and OLED Test diagnostics screen
 
 Hardware intentionally not active right now:
 
-- External SSD1309 OLED display
 - ESP-NOW RC controller hardware
 - Direct Raspberry Pi shell/admin control; Pi Monitor stays scoped to MQTT monitoring plus whitelisted JSON commands
 - IR, BLE, audio beyond voice memos, and other expansion hardware
 
-Future idea: add SSD1309 OLED support as a secondary display on the M5Stack Unit PaHub v2.1 after the ENV III path is hardware-tested. Plan: ENV III on PaHub channel 0, OLED reserved for PaHub channel 1, PaHub default address `0x70`. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
+Current external-display direction: keep the built-in LCD as the primary control UI, and use the SSD1309 OLED as a small glance/status display on the M5Stack Unit PaHub v2.1. Plan: ENV III remains on PaHub channel 0, SSD1309 OLED remains on PaHub channel 1, PaHub default address `0x70`. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
 
 ## Software, Libraries, And Frameworks
 
@@ -128,6 +132,7 @@ Libraries in [platformio.ini](platformio.ini):
 - `z3t0/IRremote@^4.7.1`
 - `knolleary/PubSubClient@^2.8`
 - `bblanchon/ArduinoJson@^6.21.5`
+- `olikraus/U8g2@^2.36.12`
 
 Arduino/core libraries used by the firmware:
 
@@ -161,9 +166,11 @@ Important build note:
 |   |-- app.h
 |   |-- app_state.cpp
 |   |-- environment_screen.cpp
+|   |-- i2c_hub.cpp
 |   |-- input.cpp
 |   |-- level_tool.cpp
 |   |-- main.cpp
+|   |-- oled_test.cpp
 |   |-- pi_monitor.cpp
 |   |-- power_screen.cpp
 |   |-- rf_scanner.cpp
@@ -185,6 +192,7 @@ Important build note:
 |   |-- check_menu_structure.py
 |   |-- check_nrf24_feature.py
 |   |-- check_oled_test.py
+|   |-- check_oled_status_dashboard.py
 |   |-- check_pi_command_center_plan.py
 |   |-- check_power_status.py
 |   |-- check_saved_wifi.py
@@ -217,6 +225,7 @@ File responsibilities:
 - [src/voice_memos.cpp](src/voice_memos.cpp): microSD WAV recording, listing, playback, and delete flow.
 - [src/i2c_hub.cpp](src/i2c_hub.cpp): optional M5Stack Unit PaHub v2.1 detection and channel selection for shared Grove I2C.
 - [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
+- [src/oled_test.cpp](src/oled_test.cpp): SSD1309 OLED Status Dashboard plus OLED Test diagnostics on PaHub channel 1.
 - [src/rf_scanner.cpp](src/rf_scanner.cpp): NRF24 radio setup and RF channel scanner.
 - [src/level_tool.cpp](src/level_tool.cpp): BMI270 level/crosshair tool.
 - [platformio.ini](platformio.ini): board/framework/library configuration.
@@ -459,14 +468,18 @@ Behavior:
 - Supports direct Grove wiring and the M5Stack Unit PaHub v2.1 path.
 - Detects the PaHub at default address `0x70`.
 - Selects ENV III on PaHub channel 0 before sensor initialization and reads.
+- Waits briefly after PaHub channel selection before talking to the ENV III sensors.
 - Falls back to direct Grove behavior when no PaHub is detected.
 - Uses the global Arduino `Wire` object for ENV III because this path reads both SHT30 and QMP6988 correctly on the Cardputer Adv.
 - Shows:
   - Temperature in C and F
   - Humidity in percent
   - Pressure in hPa
-  - Altitude estimate in meters
   - Sensor status
+- Filters out impossible pressure values instead of showing misleading readings.
+- Pressure must be finite and between `300.0` and `1100.0` hPa to display or log.
+- If QMP6988 returns a bad value, the screen shows `Pressure: invalid`.
+- Invalid pressure retries sensor initialization periodically in case the QMP6988 calibration read was bad.
 - Optional CSV logging to microSD.
 - Refreshes about once per second.
 - If the unit is unplugged or not found, the screen shows `ENV III not found`, shows the active I2C path, and retries every few seconds.
@@ -476,7 +489,7 @@ Behavior:
 - Backspace deletes characters while naming; OK/Enter starts logging.
 - Blank names fall back to `/env/env001.csv`.
 - Named sessions create files such as `/env/backyard001.csv`; spaces become underscores and names are capped at 16 characters.
-- CSV columns: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m`.
+- CSV columns: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa`.
 - The Environment screen shows the log file name and sample count while logging.
 - If the SD card is missing, logging shows an error and the firmware remains usable.
 
@@ -487,7 +500,9 @@ ENV constants:
 - I2C frequency: `ENV_I2C_FREQUENCY = 400000`
 - PaHub address: `I2C_HUB_ADDRESS = 0x70`
 - ENV III PaHub channel: `I2C_HUB_ENV_CHANNEL = 0`
-- OLED reserved PaHub channel: `I2C_HUB_OLED_CHANNEL = 1`
+- OLED PaHub channel: `I2C_HUB_OLED_CHANNEL = 1`
+- PaHub settle delay: `I2C_HUB_CHANNEL_SETTLE_US = 1000`
+- Pressure sanity range: `300.0` to `1100.0` hPa
 - Refresh: `ENV_REFRESH_INTERVAL_MS = 1000`
 - Retry: `ENV_RETRY_INTERVAL_MS = 3000`
 
@@ -505,8 +520,62 @@ ENV wiring, PaHub path:
 - Plug the Unit PaHub v2.1 input into the Cardputer Grove port.
 - Leave the PaHub DIP switch at the default address `0x70` for the first test.
 - Plug ENV III into PaHub channel 0.
-- Keep PaHub channel 1 reserved for the future SSD1309 OLED proof.
+- Plug the SSD1309 OLED into PaHub channel 1 for the OLED Status Dashboard and OLED Test diagnostics.
 - Do not connect the OLED to G8/G9.
+
+### OLED Status Dashboard And Test
+
+Behavior:
+
+- Adds a compact OLED Status Dashboard for the SSD1309 OLED.
+- Keeps `OLED Test` as a diagnostics/proof-of-life screen.
+- Uses U8g2 with `U8G2_SSD1309_128X64_NONAME0_F_HW_I2C`.
+- Requires the M5Stack Unit PaHub v2.1 at default address `0x70`.
+- OLED remains on PaHub channel 1.
+- ENV III remains on PaHub channel 0.
+- Selects PaHub channel 1 before probing, initializing, and drawing OLED content.
+- Probes OLED I2C addresses `0x3C` and `0x3D`.
+- The built-in Cardputer LCD remains the main control screen.
+- The OLED is a small glance/status display, not a duplicate of the built-in screen.
+- Dashboard drawing is centralized in `renderOledStatusDashboard()`.
+- `serviceOledStatusDashboard()` refreshes the OLED about once per second from `loop()`.
+- Features can later provide a short context line through `setOledStatusLine(...)` without knowing U8g2 details.
+- Missing PaHub or missing OLED shows a status on the built-in OLED Test screen and keeps firmware usable.
+- OLED detection retries periodically when the dashboard is active.
+- Do not connect the OLED to G8/G9.
+
+Dashboard content:
+
+- Current screen/mode.
+- Battery level or charging status.
+- Wi-Fi connected/disconnected.
+- MQTT connected/disconnected when Pi Monitor is active or has been used.
+- A compact context line for the active feature.
+
+Screen-specific examples:
+
+- Main menu: `Scoober`, battery, Wi-Fi, mode/menu selection.
+- Pi Monitor: MQTT status, selected target, command status, message/device counts.
+- Environment: temperature F, humidity, pressure value or `Press: invalid`.
+- Voice Memos: `REC mm:ss` while recording, active/selected memo, SD/status.
+- RF Scan: radio state, quiet channels, selected channel/activity.
+
+OLED Test diagnostics:
+
+- Draws `Scoober OLED`, `SSD1309 ch1`, the active address, a draw counter, a border, and a moving marker.
+- OK/Enter or R retries OLED detection.
+- Backspace returns to the main menu.
+
+OLED constants:
+
+- PaHub channel: `I2C_HUB_OLED_CHANNEL = 1`
+- Primary OLED address: `OLED_I2C_ADDRESS_PRIMARY = 0x3C`
+- Secondary OLED address: `OLED_I2C_ADDRESS_SECONDARY = 0x3D`
+- OLED Test refresh interval: `OLED_TEST_REFRESH_INTERVAL_MS = 1000`
+- OLED Status Dashboard refresh interval: `OLED_STATUS_REFRESH_INTERVAL_MS = 1000`
+- OLED retry interval: `OLED_RETRY_INTERVAL_MS = 3000`
+- OLED status lines: `OLED_STATUS_LINE_COUNT = 5`
+- OLED line length: `OLED_STATUS_MAX_CHARS = 21`
 
 ### RF Scan
 
@@ -648,7 +717,7 @@ Known pins used by current firmware:
 | Unit PaHub v2.1 input | G2/G1 Grove | Optional external I2C multiplexer |
 | Unit PaHub v2.1 address | 0x70 | Default DIP-switch address |
 | ENV III via PaHub | Channel 0 | First Priority #7 hardware test |
-| OLED via PaHub | Channel 1 | Reserved; no active OLED firmware yet |
+| SSD1309 OLED via PaHub | Channel 1 | OLED Status Dashboard and OLED Test diagnostics |
 | Internal Cardputer I2C | G8/G9 | Do not use directly for external I2C modules |
 | Download mode | G0 | Hold while applying USB/power if upload fails |
 
@@ -679,10 +748,10 @@ Current active communication paths:
   - Publishes Cardputer availability/status under `home/devices/scoober-cardputer/...`.
   - Publishes only whitelisted `read_now` and fixed-choice `set_interval` JSON commands to `home/devices/<selected_target>/commands`.
 - **I2C**
-- Grove external I2C is used by ENV III on G2/G1.
-- Optional Unit PaHub v2.1 support detects the mux at `0x70` and selects ENV III on channel 0.
-- OLED is reserved for PaHub channel 1, but no active OLED firmware is present yet.
-- Internal I2C is used by Cardputer hardware through M5 libraries.
+  - Grove external I2C is used by ENV III on G2/G1.
+  - Optional Unit PaHub v2.1 support detects the mux at `0x70` and selects ENV III on channel 0.
+  - OLED Status Dashboard and OLED Test select the SSD1309 OLED on PaHub channel 1 and probe `0x3C` / `0x3D`.
+  - Internal I2C is used by Cardputer hardware through M5 libraries.
 - **SPI**
   - Used for microSD access.
   - Used by the RF Scan feature on the Cardputer-Adv EXT SPI pins.
@@ -869,9 +938,10 @@ Guard script:
 
 Highest priority:
 
-1. Hardware-test ENV III through Unit PaHub v2.1 channel 0 with the PaHub at default address `0x70`.
-2. Verify Environment still reads temperature/humidity/pressure and keyboard navigation still works.
-3. After that passes, add only an SSD1309 OLED proof-of-life screen on PaHub channel 1.
+1. Hardware-test the OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan.
+2. Spot-check Environment after OLED dashboard updates to confirm PaHub channel switching between OLED channel 1 and ENV III channel 0.
+3. Confirm keyboard navigation still feels normal with ENV III and OLED both connected.
+4. If that works, treat the OLED Status Dashboard foundation as complete enough.
 
 Good near-term improvements:
 
@@ -884,7 +954,7 @@ Future bigger milestones:
 
 1. Broader Raspberry Pi command center integration.
 2. MQTT authentication after live Mosquitto configuration is confirmed.
-3. Future idea: optional external display support only after a safe pin plan or I2C expansion path is chosen.
+3. Broader OLED status widgets after the dashboard foundation is tested on hardware.
 4. More hardware tools using IR, Grove, BLE, or other Cardputer expansion options.
 
 ## Build Instructions
@@ -985,10 +1055,12 @@ Run all guard scripts:
 python tools/check_battery_trend.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
+python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
+python tools/check_oled_status_dashboard.py
 python tools/check_pi_command_center_plan.py
 python tools/check_power_status.py
 python tools/check_saved_wifi.py
@@ -1047,6 +1119,7 @@ After upload:
 - Environment shows a not-found/retry message when ENV III is disconnected.
 - Environment uses `L to name and start logging`; OK/Enter starts logging and Backspace deletes characters while naming.
 - Environment writes `/env/env001.csv` or named files such as `/env/backyard001.csv` to microSD.
+- Environment ignores invalid pressure readings instead of logging impossible values.
 - RF Scan opens, shows radio detected/not found, sweeps channels `0-125`, and draws a bar graph.
 - RF Scan lists quiet channels and lets `R` or OK/Enter rescan.
 - RF Scan lets `,` / `;` and `.` / `/` move the selected channel marker.
@@ -1075,5 +1148,8 @@ After upload:
 - If the keyboard stops working after adding hardware, immediately suspect an I2C pin conflict.
 - If Environment says `ENV III not found`, confirm the unit is in the Grove port or PaHub channel 0 and wait for retry.
 - If using Unit PaHub v2.1, leave the DIP switch at default `0x70` for this firmware step.
+- If the OLED Status Dashboard stays blank, open OLED Test to see whether the firmware reports `PaHub not found` or `OLED not found`.
+- If OLED Test says `PaHub not found`, confirm the PaHub input is connected to Cardputer Grove and the DIP switch is at `0x70`.
+- If OLED Test says `OLED not found`, confirm the OLED is on PaHub channel 1 and try OK/Enter or R.
 - If Voice Memos shows SD errors, confirm the microSD card is inserted and formatted.
 - If needed, restore factory firmware with M5Burner.

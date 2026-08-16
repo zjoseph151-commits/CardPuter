@@ -201,6 +201,18 @@ void handleKeyboard() {
     if (changed) {
       renderEnvironmentLogName();
     }
+  } else if (currentScreen == Screen::OledTest) {
+    for (char key : keys.word) {
+      if (key == 'r' || key == 'R') {
+        oledInitialized = false;
+        renderOledTest();
+      }
+    }
+
+    if (keys.enter) {
+      oledInitialized = false;
+      renderOledTest();
+    }
   } else if (currentScreen == Screen::RfScanner) {
     for (char key : keys.word) {
       if (key == 'r' || key == 'R') {

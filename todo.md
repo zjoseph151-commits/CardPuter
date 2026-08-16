@@ -104,29 +104,47 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 ## Priority 7: External Display Revisit
 
 - Priority #7 planning started on 2026-08-15.
-- External display support is intentionally inactive.
+- External display support now has an OLED Status Dashboard foundation plus OLED Test diagnostics.
 - Do not use G8/G9 directly for external I2C.
 - Planning doc: `docs/superpowers/plans/2026-08-15-external-display-revisit.md`.
 - Guard: `tools/check_external_display_revisit.py`.
+- Guard: `tools/check_oled_status_dashboard.py`.
 - User chose the M5Stack Unit PaHub v2.1 on 2026-08-15.
 - Chosen hardware path:
   - Cardputer Grove G2/G1 to Unit PaHub v2.1 input
   - default PaHub address `0x70`
   - ENV III on PaHub channel 0
-  - OLED reserved for PaHub channel 1
+  - SSD1309 OLED on PaHub channel 1
 - First firmware foundation added:
   - detect PaHub at `0x70`
   - select ENV III channel 0 before Environment init/read
   - fall back to direct Grove when no PaHub is present
-- If revisiting SSD1309 OLED:
-  - choose safe pins or use Grove with an I2C mux/expander
-  - add U8g2 back only when the hardware plan is approved
-  - add a simple proof-of-life screen first
-  - verify keyboard navigation after wiring
+- OLED Test proof-of-life added:
+  - U8g2 dependency active
+  - select PaHub channel 1 before OLED probe/init/draw
+  - probe `0x3C` and `0x3D`
+  - draw a simple SSD1309 proof pattern
+  - OK/Enter or `R` retries OLED detection
+- User confirmed OLED Test works on hardware on 2026-08-15.
+- OLED Status Dashboard foundation added on 2026-08-16:
+  - centralize status drawing in `renderOledStatusDashboard()`
+  - refresh from `loop()` through `serviceOledStatusDashboard()`
+  - keep optional feature context available through `setOledStatusLine(...)`
+  - show current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and compact feature context
+  - Main Menu shows Scoober, battery, Wi-Fi, mode/menu selection
+  - Pi Monitor shows MQTT, target, command, and message/device context
+  - Environment shows temperature, humidity, and valid pressure or `Press: invalid`
+  - Voice Memos shows recording timer or selected memo/status
+  - RF Scan shows quiet channel and selected channel context
 - Hardware test checklist:
-  - ENV III through Unit PaHub v2.1 channel 0: needs testing
-  - keyboard navigation with Unit PaHub v2.1 attached: needs testing
+  - ENV III through Unit PaHub v2.1 channel 0: user confirmed mostly working on 2026-08-15
+  - keyboard navigation with Unit PaHub v2.1 attached: user confirmed working on 2026-08-15
   - direct Grove ENV III fallback after this change: worth spot-checking
+  - OLED Test through Unit PaHub v2.1 channel 1: user confirmed working on 2026-08-15
+  - OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan: needs hardware test
+  - Environment after dashboard updates, with both modules attached: needs channel-switching spot-check
+  - keyboard navigation while dashboard is refreshing: needs spot-check
+- Priority #7 is complete enough after the OLED Status Dashboard hardware test and Environment-after-dashboard channel switching spot-check.
 
 ## Done / Historical Milestones
 
@@ -149,8 +167,9 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Tried and removed active OLED support.
 - Added Environment screen for M5Stack ENV III Unit.
 - Added optional Environment CSV logging to microSD with one new `/env/envNNN.csv` file per session.
-- Environment CSV columns: uptime seconds, temperature C, temperature F, humidity percent, pressure hPa, altitude m.
+- Environment CSV columns: uptime seconds, temperature C, temperature F, humidity percent, pressure hPa.
 - Added Environment log naming before start, `L` start/stop logging control, log file/sample display, and graceful SD-missing behavior.
+- Added Environment pressure sanity filtering after PaHub hardware testing showed impossible QMP6988 pressure and `nan` altitude; altitude is no longer displayed or logged.
 - Added first-pass NRF24 diagnostics feature with RF24 dependency, EXT shared SPI pin plan, graceful missing-radio status, manual test transmit, passive receive counter, and local guard script.
 - Added XIAO ESP32-C3 NRF24/OLED second-node PlatformIO project with `CARD ping N` / `XIAO ack N` proof protocol.
 - Tuned NRF24 proof firmware after hardware testing showed payloads could arrive even when RF24 hardware ACK was missed: switched to 250 kbps, disabled RF hardware ACK for proof mode, simplified to shared `SCBR1` address, added XIAO beacons, added Cardputer RPD/carrier counters, lowered XIAO PA for close-range testing, made the XIAO send repeated delayed replies, and added TX success/failure plus RX pipe/FIFO diagnostics.

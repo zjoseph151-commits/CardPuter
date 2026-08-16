@@ -224,7 +224,7 @@ Hardware:
 
 - M5Stack ENV III Unit
 - Uses SHT30 for temperature/humidity
-- Uses QMP6988 for pressure/altitude
+- Uses QMP6988 for pressure
 
 Library:
 
@@ -251,12 +251,16 @@ Behavior:
 - If neither responds, displays `ENV III not found`.
 - Retries while the screen is open.
 - Prints readings/status to Serial.
+- Pressure is accepted only when finite and between `300.0` and `1100.0` hPa.
+- Invalid pressure displays as `Pressure: invalid` and is left blank in CSV logs.
+- Invalid pressure triggers periodic ENV III reinitialization in case QMP6988 calibration was read badly through the PaHub.
+- Altitude was removed from the screen and CSV logs because it was not useful and became `nan` when QMP6988 returned bad pressure.
 - Press `L` on the Environment screen to open a log-name entry screen before starting optional CSV logging.
 - OK/Enter starts logging with the typed name; Backspace deletes characters, or cancels when the name is blank.
 - Names allow letters, numbers, spaces, `_`, and `-`; spaces are saved as underscores and names are capped at 16 characters.
 - Blank names fall back to `env001.csv`, `env002.csv`, etc.
 - Named sessions create files in `/env`, such as `backyard001.csv`.
-- CSV header: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m`.
+- CSV header: `uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa`.
 - The screen shows the active log file name and sample count.
 - Backspace stops any active Environment log before returning to the main menu.
 - Missing SD card or `/env` creation failure shows a status message and leaves the firmware usable.
@@ -265,6 +269,7 @@ Important history:
 
 - A `TwoWire envWire(1)` experiment compiled, but on hardware QMP6988 pressure read as `0.0 hPa` and altitude as `inf m`.
 - Reverted ENV III to the global `Wire` path because it reads both SHT30 and QMP6988 correctly.
+- On 2026-08-15 with ENV III through PaHub channel 0, user reported pressure around `-3300 hPa` and altitude `nan`; pressure sanity filtering was added and altitude was removed.
 
 Manual wiring if not using Grove connector:
 
@@ -409,7 +414,7 @@ Guard:
 
 ## OLED Experiment Notes
 
-The user bought/planned a 2.42 inch SSD1309 OLED, then decided not to add it right now.
+The user bought/planned a 2.42 inch SSD1309 OLED, paused it after the first pin-conflict experiment, then brought it back through the PaHub path.
 
 What was tried:
 
@@ -422,24 +427,34 @@ What was tried:
 
 Current state:
 
-- No active OLED code.
-- No U8g2 dependency.
-- README keeps a future idea note.
-- `tools/check_oled_test.py` ensures the inactive OLED feature does not return accidentally.
+- OLED Status Dashboard foundation is active.
+- OLED Test proof-of-life screen remains active as diagnostics.
+- U8g2 dependency is active for the dashboard and diagnostics screen.
+- `tools/check_oled_test.py` ensures the proof screen stays on PaHub channel 1 and does not use direct OLED pins.
+- `tools/check_oled_status_dashboard.py` ensures the dashboard helpers stay present, OLED remains on PaHub channel 1, ENV III remains on PaHub channel 0, and direct G8/G9 OLED wiring does not come back.
 - Priority #7 planning started on 2026-08-15 in `docs/superpowers/plans/2026-08-15-external-display-revisit.md`.
-- `tools/check_external_display_revisit.py` keeps the external-display safety notes and inactive firmware state explicit.
+- `tools/check_external_display_revisit.py` keeps the external-display safety notes and PaHub channel plan explicit.
 - User chose the M5Stack Unit PaHub v2.1 on 2026-08-15.
 - The PaHub uses a PCA9548AP I2C mux; project plan keeps the default address `0x70`.
 - First firmware foundation detects the PaHub at `0x70`, selects ENV III on PaHub channel 0, and falls back to direct Grove if the hub is missing.
-- OLED reserved for PaHub channel 1, but OLED firmware remains inactive.
+- SSD1309 OLED on PaHub channel 1.
+- OLED Test probes `0x3C` and `0x3D`, then draws `Scoober OLED`, the active address, a draw counter, a border, and a moving marker.
+- OK/Enter or `R` retries OLED detection.
+- User confirmed OLED Test works great on Cardputer hardware on 2026-08-15.
+- `src/oled_test.cpp` centralizes U8g2 drawing for both the OLED Status Dashboard and OLED Test diagnostics.
+- `serviceOledStatusDashboard()` refreshes the OLED about once per second from `loop()`.
+- `renderOledStatusDashboard()` builds five clipped lines for the active feature.
+- `setOledStatusLine(...)` exists so features can provide a short optional context line later without knowing U8g2 details.
+- The dashboard shows current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and feature context for Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan.
+- Hardware dashboard testing is pending across those screens.
 
 Future OLED guidance:
 
 - Do not use G8/G9 directly for external I2C.
 - Use the M5Stack Unit PaHub v2.1 path when ENV III and OLED need to stay connected together.
-- ENV III on PaHub channel 0; OLED reserved for PaHub channel 1.
+- ENV III on PaHub channel 0; SSD1309 OLED on PaHub channel 1.
 - Consider a different display interface only after checking for microSD, NRF24, keyboard, and internal hardware conflicts.
-- Reintroduce display support only when there is a deliberate pin plan.
+- Keep the OLED secondary: a glance/status display, not a duplicate of the built-in LCD.
 
 ## ESP-NOW And RC Notes
 

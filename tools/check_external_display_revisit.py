@@ -17,35 +17,33 @@ platformio = PLATFORMIO.read_text(encoding="utf-8")
 plan = PLAN.read_text(encoding="utf-8")
 source = firmware_source_text()
 
-for token in [
-    "olikraus/U8g2",
-]:
-    assert token not in platformio, f"External display is inactive; remove dependency: {token}"
+assert "olikraus/U8g2" in platformio, "OLED proof should use U8g2"
 
 for token in [
-    "#include <U8g2lib.h>",
-    "Screen::OledTest",
-    '"OLED Test"',
     "OLED_SDA_PIN",
     "OLED_SCL_PIN",
-    "OLED_I2C_ADDRESS_PRIMARY",
-    "OLED_I2C_ADDRESS_SECONDARY",
-    "U8G2_SSD1309_128X64_NONAME0_F_HW_I2C",
-    "initOledDisplay()",
-    "drawOledTestPattern()",
-    "renderOledTest()",
 ]:
-    assert token not in source, f"External display is inactive; remove firmware token: {token}"
+    assert token not in source, f"External OLED must not use direct pin token: {token}"
 
 required_source_tokens = [
     "I2C_HUB_ADDRESS = 0x70",
     "I2C_HUB_CHANNEL_COUNT = 6",
     "I2C_HUB_ENV_CHANNEL = 0",
     "I2C_HUB_OLED_CHANNEL = 1",
+    "I2C_HUB_CHANNEL_SETTLE_US = 1000",
     "detectI2cHub()",
     "selectI2cHubChannel(",
     "selectEnvironmentI2cPath()",
+    "selectOledI2cPath()",
+    "OLED_I2C_ADDRESS_PRIMARY = 0x3C",
+    "OLED_I2C_ADDRESS_SECONDARY = 0x3D",
+    "Screen::OledTest",
+    "renderOledStatusDashboard()",
+    "serviceOledStatusDashboard()",
+    "setOledStatusLine(const String& line)",
+    "drawOledTestPattern()",
     "Wire.write(1U << channel)",
+    "delayMicroseconds(I2C_HUB_CHANNEL_SETTLE_US)",
     "PaHub ch",
 ]
 
@@ -54,13 +52,12 @@ for token in required_source_tokens:
 
 required_docs = {
     "README.md": [
-        "Has no active external OLED display code.",
+        "Has an OLED Status Dashboard",
         "M5Stack Unit PaHub v2.1",
         "PCA9548AP",
         "Avoid using G8/G9 directly",
-        "safe pin plan or I2C expansion path",
         "ENV III on PaHub channel 0",
-        "OLED reserved for PaHub channel 1",
+        "SSD1309 OLED on PaHub channel 1",
         "Keep external I2C modules on Grove `G2/G1` unless there is a deliberate expansion/mux/buffer plan.",
     ],
     "todo.md": [
@@ -68,26 +65,26 @@ required_docs = {
         "User chose the M5Stack Unit PaHub v2.1",
         "default PaHub address `0x70`",
         "ENV III on PaHub channel 0",
-        "OLED reserved for PaHub channel 1",
-        "External display support is intentionally inactive.",
+        "SSD1309 OLED on PaHub channel 1",
+        "OLED Status Dashboard foundation",
+        "OLED Test proof-of-life added",
         "Do not use G8/G9 directly for external I2C.",
-        "choose safe pins or use Grove with an I2C mux/expander",
-        "add U8g2 back only when the hardware plan is approved",
     ],
     "notes.md": [
-        "No active OLED code.",
-        "No U8g2 dependency.",
+        "OLED Status Dashboard foundation is active.",
+        "OLED Test proof-of-life screen remains active as diagnostics.",
+        "U8g2 dependency is active for the dashboard and diagnostics screen.",
         "M5Stack Unit PaHub v2.1",
         "ENV III on PaHub channel 0",
-        "OLED reserved for PaHub channel 1",
-        "Reintroduce display support only when there is a deliberate pin plan.",
+        "SSD1309 OLED on PaHub channel 1",
     ],
     str(PLAN.relative_to(ROOT)): [
-        "No active external display code should be added until the hardware plan is approved.",
+        "OLED Status Dashboard foundation",
+        "OLED Test proof-of-life screen was added.",
         "Chosen path: M5Stack Unit PaHub v2.1",
         "Default I2C address: `0x70`",
         "ENV III on PaHub channel 0",
-        "OLED reserved for PaHub channel 1",
+        "SSD1309 OLED on PaHub channel 1",
         "Detect the PaHub at `0x70`.",
         "Do not use G8/G9 directly for external I2C.",
         "Add a simple proof-of-life screen",

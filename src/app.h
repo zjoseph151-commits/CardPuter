@@ -8,6 +8,7 @@
 #include <RF24.h>
 #include <SPI.h>
 #include <SD.h>
+#include <U8g2lib.h>
 #include <Wire.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
@@ -71,11 +72,21 @@ constexpr uint8_t I2C_HUB_ADDRESS = 0x70;
 constexpr uint8_t I2C_HUB_CHANNEL_COUNT = 6;
 constexpr uint8_t I2C_HUB_ENV_CHANNEL = 0;
 constexpr uint8_t I2C_HUB_OLED_CHANNEL = 1;
+constexpr uint16_t I2C_HUB_CHANNEL_SETTLE_US = 1000;
+constexpr uint8_t OLED_I2C_ADDRESS_PRIMARY = 0x3C;
+constexpr uint8_t OLED_I2C_ADDRESS_SECONDARY = 0x3D;
+constexpr uint32_t OLED_TEST_REFRESH_INTERVAL_MS = 1000;
+constexpr uint32_t OLED_STATUS_REFRESH_INTERVAL_MS = 1000;
+constexpr uint32_t OLED_RETRY_INTERVAL_MS = 3000;
+constexpr uint8_t OLED_STATUS_LINE_COUNT = 5;
+constexpr uint8_t OLED_STATUS_MAX_CHARS = 21;
+constexpr float ENV_PRESSURE_MIN_HPA = 300.0f;
+constexpr float ENV_PRESSURE_MAX_HPA = 1100.0f;
 constexpr uint32_t ENV_REFRESH_INTERVAL_MS = 1000;
 constexpr uint32_t ENV_RETRY_INTERVAL_MS = 3000;
 constexpr const char* ENV_LOG_DIR = "/env";
 constexpr const char* ENV_LOG_HEADER =
-    "uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa,altitude_m";
+    "uptime_s,temp_c,temp_f,humidity_pct,pressure_hpa";
 constexpr int ENV_LOG_NAME_MAX_LENGTH = 16;
 constexpr const char* VOICE_MEMO_DIR = "/memos";
 constexpr int MAX_VOICE_MEMOS = 30;
@@ -107,6 +118,7 @@ enum class Screen {
   VoiceMemoDeleteResult,
   Environment,
   EnvironmentLogName,
+  OledTest,
   RfScanner,
   LevelTool,
 };
@@ -174,6 +186,7 @@ extern const int MENU_ITEM_COUNT;
 
 extern SHT3X envSht30;
 extern QMP6988 envQmp6988;
+extern U8G2_SSD1309_128X64_NONAME0_F_HW_I2C oledDisplay;
 extern RF24 nrf24Radio;
 extern WiFiClient piMonitorWifiClient;
 extern PubSubClient piMonitorMqttClient;
@@ -182,6 +195,8 @@ extern int selectedMenuIndex;
 extern int menuScrollOffset;
 extern unsigned long lastSystemRefreshMs;
 extern unsigned long lastLevelRefreshMs;
+extern unsigned long lastOledRefreshMs;
+extern unsigned long lastOledInitAttemptMs;
 extern unsigned long lastBatterySampleMs;
 extern unsigned long lastEnvironmentRefreshMs;
 extern unsigned long lastEnvironmentRetryMs;
@@ -239,7 +254,10 @@ extern bool envSht30Ready;
 extern bool envQmp6988Ready;
 extern bool envHasTempHumidity;
 extern bool envHasPressure;
+extern bool envPressureInvalid;
 extern bool i2cHubDetected;
+extern bool oledInitialized;
+extern bool oledOnline;
 extern bool envLogging;
 extern bool nrf24Initialized;
 extern bool nrf24ChipConnected;
@@ -254,6 +272,8 @@ extern String pendingVoiceMemoDeletePath;
 extern String voiceMemoDeleteResultMessage;
 extern String envStatus;
 extern String i2cHubStatus;
+extern String oledStatus;
+extern String oledStatusLine;
 extern String envLogStatus;
 extern String envLogFileName;
 extern String envLogFilePath;
@@ -262,6 +282,7 @@ extern String nrf24Status;
 extern String rfScanStatus;
 extern uint32_t voiceMemoRecordedBytes;
 extern uint32_t envLogSampleCount;
+extern uint32_t oledDrawCount;
 extern uint32_t rfScanCompletedAtMs;
 extern unsigned long voiceMemoRecordingStartedMs;
 extern unsigned long lastVoiceMemoRenderMs;
@@ -271,11 +292,11 @@ extern int lastBatteryLevel;
 extern int lastVbusVoltageMv;
 extern int lastBatteryCurrentMa;
 extern int i2cHubActiveChannel;
+extern uint8_t oledActiveAddress;
 extern m5::Power_Class::is_charging_t lastChargingStatus;
 extern float envTemperatureC;
 extern float envHumidityPercent;
 extern float envPressureHpa;
-extern float envAltitudeM;
 extern float smoothedLevelX;
 extern float smoothedLevelY;
 extern bool levelSmoothingInitialized;
@@ -304,6 +325,12 @@ void renderVoiceMemoDeleteConfirm();
 void renderVoiceMemoDeleteResult();
 void showEnvironment();
 void renderEnvironmentLogName();
+void showOledTest();
+void renderOledTest();
+void serviceOledStatusDashboard();
+void renderOledStatusDashboard();
+void setOledStatusLine(const String& line);
+void clearOledStatusLine();
 void showRfScanner();
 void showLevelTool();
 
@@ -356,10 +383,17 @@ bool deleteSelectedVoiceMemo();
 void resetVoiceMemoAudio();
 bool initEnvironmentSensor();
 bool readEnvironmentSensor();
+bool isValidEnvironmentPressureHpa(float pressureHpa);
 bool detectI2cHub();
 bool selectI2cHubChannel(uint8_t channel);
 bool selectEnvironmentI2cPath();
+bool selectOledI2cPath();
 String environmentI2cPathLabel();
+String oledI2cPathLabel();
+bool initOledDisplay();
+bool ensureOledReady();
+bool probeOledAddress(uint8_t address);
+void drawOledTestPattern();
 bool initEnvironmentLogSd();
 String sanitizeEnvironmentLogName(const String& requestedName);
 bool findNextEnvironmentLogPath(const String& requestedName, String& path, String& name);

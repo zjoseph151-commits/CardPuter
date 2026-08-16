@@ -9,8 +9,10 @@ void setScreen(Screen screen) {
   }
 
   currentScreen = screen;
+  clearOledStatusLine();
   lastSystemRefreshMs = 0;
   lastLevelRefreshMs = 0;
+  lastOledRefreshMs = 0;
   lastEnvironmentRefreshMs = 0;
 
   switch (currentScreen) {
@@ -80,6 +82,10 @@ void setScreen(Screen screen) {
       envLogNameInput = "";
       drawScreenFrame("Log Name");
       renderEnvironmentLogName();
+      break;
+    case Screen::OledTest:
+      drawScreenFrame("OLED Test (PaHub ch1)");
+      showOledTest();
       break;
     case Screen::RfScanner:
       drawScreenFrame("RF Scan");

@@ -41,7 +41,8 @@ void showEnvironment() {
 
   if (envHasPressure) {
     contentCanvas.printf("Pressure: %.1f hPa\n", envPressureHpa);
-    contentCanvas.printf("Altitude: %.1f m\n", envAltitudeM);
+  } else if (envPressureInvalid) {
+    contentCanvas.println("Pressure: invalid");
   } else {
     contentCanvas.println("Pressure: waiting");
   }
@@ -81,6 +82,7 @@ bool initEnvironmentSensor() {
     envSensorInitialized = false;
     envHasTempHumidity = false;
     envHasPressure = false;
+    envPressureInvalid = false;
     envStatus = "PaHub select failed";
     Serial.println("Environment: could not select ENV III I2C path.");
     return false;
@@ -97,6 +99,7 @@ bool initEnvironmentSensor() {
   if (!envSensorInitialized) {
     envHasTempHumidity = false;
     envHasPressure = false;
+    envPressureInvalid = false;
     envStatus = String("ENV III not found ") + environmentI2cPathLabel();
     Serial.printf("Environment: ENV III not found on %s.\n",
                   environmentI2cPathLabel().c_str());
@@ -129,6 +132,7 @@ bool readEnvironmentSensor() {
     envSensorInitialized = false;
     envHasTempHumidity = false;
     envHasPressure = false;
+    envPressureInvalid = false;
     envStatus = "PaHub select failed";
     return false;
   }
@@ -143,10 +147,21 @@ bool readEnvironmentSensor() {
   }
 
   if (envQmp6988Ready && envQmp6988.update()) {
-    envPressureHpa = envQmp6988.pressure * 0.01f;
-    envAltitudeM = envQmp6988.altitude;
-    envHasPressure = true;
-    updated = true;
+    const float pressureHpa = envQmp6988.pressure * 0.01f;
+    if (isValidEnvironmentPressureHpa(pressureHpa)) {
+      envPressureHpa = pressureHpa;
+      envHasPressure = true;
+      envPressureInvalid = false;
+      updated = true;
+    } else {
+      envHasPressure = false;
+      envPressureInvalid = true;
+      Serial.printf("Environment: ignored invalid pressure %.1f hPa.\n",
+                    pressureHpa);
+      if (millis() - lastEnvironmentRetryMs > ENV_RETRY_INTERVAL_MS) {
+        initEnvironmentSensor();
+      }
+    }
   }
 
   if (updated) {
@@ -158,6 +173,11 @@ bool readEnvironmentSensor() {
   }
 
   return updated;
+}
+
+bool isValidEnvironmentPressureHpa(float pressureHpa) {
+  return isfinite(pressureHpa) && pressureHpa >= ENV_PRESSURE_MIN_HPA &&
+         pressureHpa <= ENV_PRESSURE_MAX_HPA;
 }
 
 bool initEnvironmentLogSd() {
@@ -302,10 +322,6 @@ void appendEnvironmentLogSample() {
   envLogFile.print(',');
   if (envHasPressure) {
     envLogFile.print(envPressureHpa, 2);
-  }
-  envLogFile.print(',');
-  if (envHasPressure && isfinite(envAltitudeM)) {
-    envLogFile.print(envAltitudeM, 2);
   }
   envLogFile.println();
   envLogFile.flush();

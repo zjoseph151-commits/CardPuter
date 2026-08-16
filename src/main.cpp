@@ -68,5 +68,7 @@ void loop() {
     servicePiMonitor();
   }
 
+  serviceOledStatusDashboard();
+
   delay(10);
 }

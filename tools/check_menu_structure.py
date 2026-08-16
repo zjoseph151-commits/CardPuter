@@ -14,6 +14,7 @@ def test_scoober_menu_structure():
     assert '"Pi Monitor"' in SOURCE
     assert '"Voice Memos"' in SOURCE
     assert '"Environment"' in SOURCE
+    assert '"OLED Test"' in SOURCE
     assert '"RF Scan"' in SOURCE
     assert '"Level"' in SOURCE
 
@@ -27,7 +28,6 @@ def test_scoober_menu_structure():
         "Backspace/ESC = menu",
         "Project Launcher",
         "IMU Test",
-        "OLED Test",
     )
     for label in removed_labels:
         assert label not in SOURCE

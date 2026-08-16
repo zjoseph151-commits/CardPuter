@@ -7,55 +7,76 @@ ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 PLATFORMIO = ROOT / "platformio.ini"
 
-main = firmware_source_text()
+source = firmware_source_text()
 readme = README.read_text(encoding="utf-8")
 platformio = PLATFORMIO.read_text(encoding="utf-8")
 
-forbidden_platformio_tokens = [
+required_platformio_tokens = [
     "olikraus/U8g2",
 ]
 
-for token in forbidden_platformio_tokens:
-    assert token not in platformio, f"Remove inactive OLED dependency: {token}"
+for token in required_platformio_tokens:
+    assert token in platformio, f"Missing OLED dependency: {token}"
 
-forbidden_main_tokens = [
+required_source_tokens = [
     "#include <U8g2lib.h>",
     "Screen::OledTest",
     '"OLED Test"',
-    "OLED_SDA_PIN",
-    "OLED_SCL_PIN",
     "OLED_I2C_ADDRESS_PRIMARY",
     "OLED_I2C_ADDRESS_SECONDARY",
+    "I2C_HUB_OLED_CHANNEL = 1",
     "U8G2_SSD1309_128X64_NONAME0_F_HW_I2C",
     "initOledDisplay()",
+    "ensureOledReady()",
     "drawOledTestPattern()",
     "renderOledTest()",
+    "renderOledStatusDashboard()",
+    "serviceOledStatusDashboard()",
+    "setOledStatusLine",
     "probeOledAddress(",
+    "selectOledI2cPath()",
+    "oledI2cPathLabel()",
     "oledOnline",
     "oledActiveAddress",
+    "OLED proof-of-life",
+    "OK/R retry",
 ]
 
-for token in forbidden_main_tokens:
-    assert token not in main, f"Remove inactive OLED firmware token: {token}"
+for token in required_source_tokens:
+    assert token in source, f"Missing OLED proof token: {token}"
 
-required_readme_tokens = [
-    "Future idea",
-    "SSD1309 OLED",
-    "secondary display",
-    "Avoid using G8/G9 directly",
-    "safe pin plan or I2C expansion path",
-]
-
-for token in required_readme_tokens:
-    assert token in readme, f"Missing future OLED note: {token}"
-
-forbidden_readme_tokens = [
-    "OLED Test",
+forbidden_source_tokens = [
+    "OLED_SDA_PIN",
+    "OLED_SCL_PIN",
     "SDA -> Cardputer G2",
     "SCL -> Cardputer G1",
 ]
 
-for token in forbidden_readme_tokens:
-    assert token not in readme, f"Remove active OLED instructions from README: {token}"
+for token in forbidden_source_tokens:
+    assert token not in source, f"Do not add direct OLED wiring token: {token}"
 
-print("OLED future-note checks passed.")
+required_readme_tokens = [
+    "OLED Test",
+    "OLED Status Dashboard",
+    "SSD1309 OLED",
+    "proof-of-life",
+    "PaHub channel 1",
+    "Avoid using G8/G9 directly",
+    "OK/Enter or R retries OLED detection",
+    "0x3C",
+    "0x3D",
+]
+
+for token in required_readme_tokens:
+    assert token in readme, f"Missing README OLED proof note: {token}"
+
+forbidden_readme_tokens = [
+    "SDA -> Cardputer G2",
+    "SCL -> Cardputer G1",
+    "Has no active external OLED display code.",
+]
+
+for token in forbidden_readme_tokens:
+    assert token not in readme, f"Remove stale/direct OLED README note: {token}"
+
+print("OLED proof-of-life checks passed.")
