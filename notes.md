@@ -19,12 +19,14 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/app_state.cpp`: shared global state, menu definitions, and hardware helper objects.
 - `src/ui.cpp`: screen routing, frame/content drawing helpers, and main menu rendering.
 - `src/input.cpp`: keyboard event dispatch and screen-specific key handling.
+- `src/i2c_hub.cpp`: M5Stack Unit PaHub v2.1 detection and channel selection for shared Grove I2C.
 - `src/power_screen.cpp`: Battery/System screens and battery trend logic.
 - `src/wifi_connect.cpp`: SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - `src/wifi_screens.cpp`: Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
-- `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, compact device monitor screen, Cardputer status/availability publisher, and whitelisted `read_now` command publisher.
+- `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, compact device monitor screen, Cardputer status/availability publisher, target selection, and whitelisted `read_now` / `set_interval` command publishing.
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
+- `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
 - `src/rf_scanner.cpp`: NRF24 setup and RF channel scanner.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
 - Firmware guard scripts use `tools/firmware_source.py` so checks scan all `.cpp` and `.h` files under `src`.
@@ -42,6 +44,7 @@ The active menu is defined in `MENU_ITEMS`:
 {"Pi Monitor", Screen::PiMonitor}
 {"Voice Memos", Screen::VoiceMemos}
 {"Environment", Screen::Environment}
+{"OLED Test", Screen::OledTest}
 {"RF Scan", Screen::RfScanner}
 {"Level", Screen::LevelTool}
 ```
@@ -52,7 +55,6 @@ Removed menu items:
 - Display Test
 - SD Card Test
 - ESP-NOW RC Placeholder
-- OLED Test
 - IMU Test, replaced by Level
 
 ## Input Handling Notes
@@ -71,8 +73,9 @@ Feature-specific keys:
 - WiFi Scan: `R` rescans, OK saves selected network name
 - Saved WiFi: `D` deletes selected saved SSID after confirmation
 - WiFi Connect: OK retries connection, `D` disconnects
-- Pi Monitor: OK retries MQTT connection, `C` publishes whitelisted `read_now`, `R` clears the device list and reconnects, `D` disconnects MQTT
+- Pi Monitor: OK retries MQTT connection, `C` publishes whitelisted `read_now`, `T` cycles command targets, `I` cycles fixed intervals, `S` publishes whitelisted `set_interval`, `R` clears the device list and reconnects, `D` disconnects MQTT
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
+- OLED Test: OK/Enter or `R` retries OLED detection
 - RF Scan: `R` rescans, OK rescans, `,` / `;` and `.` / `/` move the channel marker
 
 Do not re-add the old footer text inside every feature. The user asked to remove it.
@@ -446,7 +449,8 @@ Current state:
 - `renderOledStatusDashboard()` builds five clipped lines for the active feature.
 - `setOledStatusLine(...)` exists so features can provide a short optional context line later without knowing U8g2 details.
 - The dashboard shows current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and feature context for Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan.
-- Hardware dashboard testing is pending across those screens.
+- User confirmed the OLED Status Dashboard works across tested features on 2026-08-22.
+- Priority #7 is complete enough. Continue OLED work under Priority #8.
 
 Future OLED guidance:
 
@@ -455,6 +459,35 @@ Future OLED guidance:
 - ENV III on PaHub channel 0; SSD1309 OLED on PaHub channel 1.
 - Consider a different display interface only after checking for microSD, NRF24, keyboard, and internal hardware conflicts.
 - Keep the OLED secondary: a glance/status display, not a duplicate of the built-in LCD.
+
+## Upcoming Hardware Priorities
+
+Priority #8: customize each feature for the external OLED.
+
+- Keep OLED drawing centralized.
+- Keep OLED on PaHub channel 1.
+- Keep ENV III on PaHub channel 0.
+- Make per-feature OLED content useful without duplicating the built-in LCD.
+- Add guard coverage for feature-specific OLED helpers as the customization grows.
+
+Priority #9: add DS3231 / AT24C32 I2C RTC module.
+
+- User provided Amazon module link: `https://www.amazon.com/AT24C32-Replace-Arduino-Batteries-Included/dp/B07Q7NZTQS`
+- Treat as a DS3231 RTC plus AT24C32 EEPROM module until hardware scan confirms details.
+- First milestone should be RTC detection and a simple time/status path.
+- Likely useful later for Environment log timestamps, Voice Memo file names, OLED clock/status, and Pi Monitor timestamps.
+- Choose a PaHub channel before coding. Do not use ENV channel 0 or OLED channel 1.
+- Missing RTC must be graceful.
+- Keep AT24C32 EEPROM unused unless there is a clear reason.
+
+Priority #10: add M5Stack Cap LoRa-1262 for Cardputer Adv.
+
+- User provided Amazon link: `https://www.amazon.com/dp/B0GWGXXKQT`
+- Official M5Stack hardware includes SX1262 LoRa and ATGM336H GNSS.
+- M5Stack docs say it connects through the Cardputer Adv EXT 2.54-14P interface.
+- Important: current NRF24 RF Scan also uses EXT SPI-related pins. Review pin conflicts before coding and do not assume NRF24 and LoRa can be attached at the same time.
+- Start with diagnostics only.
+- Do not transmit until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately set.
 
 ## ESP-NOW And RC Notes
 

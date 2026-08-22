@@ -64,6 +64,7 @@ Current state:
 - Has an OLED Status Dashboard for the SSD1309 OLED on PaHub channel 1.
 - Keeps OLED Test as a diagnostics/proof-of-life screen.
 - User confirmed OLED Test works on hardware on 2026-08-15.
+- User confirmed the OLED Status Dashboard is working across the tested features on 2026-08-22.
 
 ## Hardware Being Used
 
@@ -98,14 +99,28 @@ Optional hardware:
 - USB-C data cable for upload and serial monitor
 - NRF24L01+ PA+LNA module with adapter/breakout for RF Scan
 - SSD1309 OLED on PaHub channel 1 for the OLED Status Dashboard and OLED Test diagnostics screen
+- Planned Priority #9 hardware: DS3231 / AT24C32 I2C RTC module
+- Planned Priority #10 hardware: M5Stack Cap LoRa-1262 for Cardputer Adv
 
 Hardware intentionally not active right now:
 
 - ESP-NOW RC controller hardware
 - Direct Raspberry Pi shell/admin control; Pi Monitor stays scoped to MQTT monitoring plus whitelisted JSON commands
+- DS3231 / AT24C32 RTC module; planned for Priority #9
+- M5Stack Cap LoRa-1262; planned for Priority #10
 - IR, BLE, audio beyond voice memos, and other expansion hardware
 
-Current external-display direction: keep the built-in LCD as the primary control UI, and use the SSD1309 OLED as a small glance/status display on the M5Stack Unit PaHub v2.1. Plan: ENV III remains on PaHub channel 0, SSD1309 OLED remains on PaHub channel 1, PaHub default address `0x70`. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
+Current external-display direction: keep the built-in LCD as the primary control UI, and use the SSD1309 OLED as a small glance/status display on the M5Stack Unit PaHub v2.1. ENV III remains on PaHub channel 0, SSD1309 OLED remains on PaHub channel 1, PaHub default address `0x70`. Priority #8 is to customize each feature's OLED status. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
+
+Next planned hardware:
+
+- Priority #9: DS3231 / AT24C32 I2C RTC module.
+  - Likely future use: timestamps for logs, voice memo file names, OLED clock/status, and Pi Monitor events.
+  - Must use a documented safe I2C path, likely another PaHub channel after review.
+- Priority #10: M5Stack Cap LoRa-1262 for Cardputer Adv.
+  - Hardware includes SX1262 LoRa and ATGM336H GNSS.
+  - It connects through the Cardputer Adv EXT interface, so review pin conflicts with the current NRF24 RF Scan wiring before coding.
+  - Start with diagnostics only; do not transmit until antenna, region/frequency, and TX power are deliberately set.
 
 ## Software, Libraries, And Frameworks
 
@@ -938,23 +953,23 @@ Guard script:
 
 Highest priority:
 
-1. Hardware-test the OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan.
-2. Spot-check Environment after OLED dashboard updates to confirm PaHub channel switching between OLED channel 1 and ENV III channel 0.
-3. Confirm keyboard navigation still feels normal with ENV III and OLED both connected.
-4. If that works, treat the OLED Status Dashboard foundation as complete enough.
+1. Start Priority #8: customize each feature for the external OLED.
+2. Keep OLED drawing centralized and keep OLED on PaHub channel 1.
+3. Keep ENV III on PaHub channel 0.
+4. Add or update guards for any OLED customization work.
 
 Good near-term improvements:
 
-1. Keep existing local utility features stable while adding Pi networking.
-2. Revisit `Resp:` only if future commands need explicit success/failure acknowledgments; `Last` / `Pay` are working for now.
-3. Add MQTT authentication after live Mosquitto configuration is confirmed.
-4. Add timestamps if a reliable time source is introduced.
+1. Plan Priority #9 RTC module integration after the OLED customization pass.
+2. Use RTC time for Environment logs, Voice Memo names, OLED clock/status, and Pi Monitor timestamps where it helps.
+3. Revisit `Resp:` only if future commands need explicit success/failure acknowledgments; `Last` / `Pay` are working for now.
+4. Add MQTT authentication after live Mosquitto configuration is confirmed.
 
 Future bigger milestones:
 
-1. Broader Raspberry Pi command center integration.
-2. MQTT authentication after live Mosquitto configuration is confirmed.
-3. Broader OLED status widgets after the dashboard foundation is tested on hardware.
+1. Priority #10 Cap LoRa-1262 diagnostics and eventual LoRa/GNSS features.
+2. Broader Raspberry Pi command center integration.
+3. MQTT authentication after live Mosquitto configuration is confirmed.
 4. More hardware tools using IR, Grove, BLE, or other Cardputer expansion options.
 
 ## Build Instructions

@@ -141,10 +141,83 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - keyboard navigation with Unit PaHub v2.1 attached: user confirmed working on 2026-08-15
   - direct Grove ENV III fallback after this change: worth spot-checking
   - OLED Test through Unit PaHub v2.1 channel 1: user confirmed working on 2026-08-15
-  - OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan: needs hardware test
-  - Environment after dashboard updates, with both modules attached: needs channel-switching spot-check
-  - keyboard navigation while dashboard is refreshing: needs spot-check
-- Priority #7 is complete enough after the OLED Status Dashboard hardware test and Environment-after-dashboard channel switching spot-check.
+  - OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan: user confirmed everything is working on 2026-08-22
+  - Environment after dashboard updates, with both modules attached: user confirmed working on 2026-08-22
+  - keyboard navigation while dashboard is refreshing: user confirmed working on 2026-08-22
+- Priority #7 is complete enough. Next OLED work belongs under Priority #8.
+
+## Priority 8: Customize Each Feature For The External OLED
+
+- Goal: make the SSD1309 OLED more useful per feature without turning it into a duplicate of the built-in LCD.
+- Keep the built-in Cardputer LCD as the main control screen.
+- Keep OLED drawing centralized; avoid exposing U8g2 details throughout feature modules.
+- Keep using PaHub channel 1 for OLED.
+- Keep ENV III on PaHub channel 0.
+- Keep graceful behavior if PaHub or OLED is missing.
+- First milestone ideas:
+  - Main Menu: show project identity, battery, Wi-Fi/MQTT summary, and selected feature.
+  - Battery/System: show glanceable power/system values.
+  - WiFi screens: show connection state, selected SSID, IP/status, and saved count.
+  - Pi Monitor: show MQTT status, selected target, selected command, and compact activity.
+  - Voice Memos: show recording timer, playback/recording state, file name, and storage status.
+  - Environment: show temperature, humidity, pressure validity, logging state, and maybe trend later.
+  - RF Scan: show selected channel, quiet channel recommendations, and scan state.
+  - Level: show compact X/Y or level/tilt status.
+- Add or update guards so feature-specific OLED helpers stay present and direct G8/G9 OLED wiring does not come back.
+- Run all guard scripts and `python -m platformio run` after each OLED customization pass.
+
+## Priority 9: Add RTC Module
+
+- Hardware requested: DS3231 / AT24C32 I2C RTC module from Amazon:
+  - `https://www.amazon.com/AT24C32-Replace-Arduino-Batteries-Included/dp/B07Q7NZTQS`
+- Purpose:
+  - provide reliable date/time without depending on Wi-Fi
+  - improve Environment CSV timestamps
+  - improve Voice Memo file names
+  - support future OLED clock/status display
+  - support Pi Monitor timestamps when useful
+- First milestone should be a safe RTC foundation, not a broad rewrite:
+  - review current PaHub/I2C implementation before coding
+  - choose and document a PaHub channel for RTC; do not use ENV channel 0 or OLED channel 1
+  - detect DS3231 gracefully and keep firmware working when missing
+  - read and display current time on a simple diagnostics/status path
+  - add an optional time-set path later, likely from compile time, serial, Wi-Fi/NTP, or a config file
+  - keep AT24C32 EEPROM unused unless there is a clear reason
+- Expected I2C notes to verify before coding:
+  - DS3231 RTC commonly uses address `0x68`
+  - AT24C32 EEPROM commonly uses address `0x57`
+  - exact module behavior should be confirmed with an I2C scan or library docs
+- Guard requirements:
+  - RTC must not replace ENV/OLED PaHub channel assignments
+  - missing RTC must be graceful
+  - PlatformIO build must pass
+
+## Priority 10: Add Cap LoRa 1262
+
+- Hardware requested: M5Stack Cap LoRa-1262 for Cardputer Adv from Amazon:
+  - `https://www.amazon.com/dp/B0GWGXXKQT`
+- Known hardware direction:
+  - official M5Stack Cardputer Adv cap
+  - SX1262 LoRa radio
+  - ATGM336H GNSS
+  - designed for the Cardputer Adv EXT 2.54-14P interface
+  - supports the 868-923 MHz LoRa band according to product/docs
+- Important conflict note:
+  - the Cap LoRa-1262 uses the Cardputer Adv EXT interface
+  - current NRF24 RF Scan also uses EXT SPI-related pins
+  - do not assume NRF24 RF Scan hardware and Cap LoRa-1262 can be used at the same time
+  - document exact pin usage and decide whether LoRa temporarily replaces NRF24 for testing
+- First milestone should be diagnostics only:
+  - review M5Stack docs and pin map before coding
+  - choose a LoRa library compatible with SX1262 and ESP32-S3
+  - add a graceful "LoRa not found" diagnostics screen or status section
+  - verify GNSS serial path separately if used
+  - do not transmit until antenna, region/frequency, and TX power are deliberately set
+  - avoid interfering with Wi-Fi, microSD, OLED, ENV III, and keyboard behavior
+- Guard requirements:
+  - preserve current NRF24 RF Scan code unless the user explicitly chooses to replace it
+  - document any shared EXT pin conflicts
+  - PlatformIO build must pass
 
 ## Done / Historical Milestones
 
