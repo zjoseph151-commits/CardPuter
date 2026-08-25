@@ -5,7 +5,6 @@
 #include <M5UnitENV.h>
 #include <Preferences.h>
 #include <PubSubClient.h>
-#include <RF24.h>
 #include <SPI.h>
 #include <SD.h>
 #include <U8g2lib.h>
@@ -19,6 +18,8 @@ constexpr const char* FIRMWARE_VERSION = "v0.1.0";
 
 constexpr int HEADER_HEIGHT = 22;
 constexpr int CONTENT_TOP = HEADER_HEIGHT + 4;
+constexpr uint8_t CONTENT_CANVAS_COLOR_DEPTH = 16;
+constexpr uint8_t CONTENT_CANVAS_FALLBACK_COLOR_DEPTH = 8;
 constexpr int CHARGING_TREND_THRESHOLD_MV = 50;
 constexpr int CHARGING_CONFIRM_SAMPLES = 3;
 constexpr int CHARGING_CLEAR_SAMPLES = 3;
@@ -50,21 +51,29 @@ constexpr int SD_SPI_MISO_PIN = 39;
 constexpr int SD_SPI_MOSI_PIN = 14;
 constexpr int SD_SPI_CS_PIN = 12;
 constexpr int SD_SPI_FREQUENCY = 25000000;
-constexpr int NRF24_SPI_SCK_PIN = 40;
-constexpr int NRF24_SPI_MISO_PIN = 39;
-constexpr int NRF24_SPI_MOSI_PIN = 14;
-constexpr int NRF24_CSN_PIN = 5;
-constexpr int NRF24_CE_PIN = 4;
-constexpr uint32_t NRF24_SPI_FREQUENCY = 4000000;
-constexpr uint8_t NRF24_CHANNEL = 76;
-constexpr uint8_t NRF24_PAYLOAD_SIZE = 32;
-constexpr uint8_t NRF24_RX_PIPE = 1;
-constexpr rf24_datarate_e NRF24_DATA_RATE = RF24_250KBPS;
-constexpr uint8_t RF_SCAN_CHANNEL_COUNT = 126;
-constexpr uint8_t RF_SCAN_SAMPLE_COUNT = 5;
-constexpr uint8_t RF_SCAN_QUIET_COUNT = 5;
-constexpr uint8_t RF_SCAN_MIN_QUIET_SPACING = 5;
-constexpr uint16_t RF_SCAN_DWELL_MS = 2;
+constexpr int LORA_RST_PIN = 3;
+constexpr int LORA_IRQ_PIN = 4;
+constexpr int LORA_NSS_PIN = 5;
+constexpr int LORA_BUSY_PIN = 6;
+constexpr int LORA_SPI_SCK_PIN = 40;
+constexpr int LORA_SPI_MISO_PIN = 39;
+constexpr int LORA_SPI_MOSI_PIN = 14;
+constexpr int LORA_GNSS_TX_PIN = 13;
+constexpr int LORA_GNSS_RX_PIN = 15;
+constexpr uint32_t LORA_GNSS_BAUD = 115200;
+constexpr uint8_t LORA_IO_EXPANDER_ADDRESS = 0x43;
+constexpr uint8_t LORA_RF_SWITCH_PIN = 0;
+constexpr float LORA_DIAG_RX_FREQUENCY_MHZ = 915.0f;
+constexpr float LORA_DIAG_BANDWIDTH_KHZ = 125.0f;
+constexpr uint8_t LORA_DIAG_SPREADING_FACTOR = 12;
+constexpr uint8_t LORA_DIAG_CODING_RATE = 5;
+constexpr uint8_t LORA_DIAG_SYNC_WORD = 0x34;
+constexpr int8_t LORA_DIAG_UNUSED_TX_POWER_DBM = 2;
+constexpr uint8_t LORA_DIAG_PREAMBLE_LEN = 20;
+constexpr uint32_t LORA_DIAG_SERVICE_INTERVAL_MS = 200;
+constexpr uint32_t LORA_DIAG_RENDER_INTERVAL_MS = 1000;
+constexpr size_t LORA_GNSS_MAX_LINE_CHARS = 82;
+constexpr const char* LORA_DIAG_NO_TX_NOTICE = "RX only. No TX.";
 constexpr int ENV_I2C_SDA_PIN = 2;
 constexpr int ENV_I2C_SCL_PIN = 1;
 constexpr uint32_t ENV_I2C_FREQUENCY = 400000U;
@@ -119,7 +128,7 @@ enum class Screen {
   Environment,
   EnvironmentLogName,
   OledTest,
-  RfScanner,
+  LoraDiag,
   LevelTool,
 };
 
@@ -180,14 +189,12 @@ struct WavHeader {
   uint32_t dataSize = 0;
 };
 
-extern const uint8_t NRF24_SHARED_ADDRESS[5];
 extern const MenuItem MENU_ITEMS[];
 extern const int MENU_ITEM_COUNT;
 
 extern SHT3X envSht30;
 extern QMP6988 envQmp6988;
 extern U8G2_SSD1309_128X64_NONAME0_F_HW_I2C oledDisplay;
-extern RF24 nrf24Radio;
 extern WiFiClient piMonitorWifiClient;
 extern PubSubClient piMonitorMqttClient;
 extern Screen currentScreen;
@@ -200,7 +207,10 @@ extern unsigned long lastOledInitAttemptMs;
 extern unsigned long lastBatterySampleMs;
 extern unsigned long lastEnvironmentRefreshMs;
 extern unsigned long lastEnvironmentRetryMs;
+extern unsigned long lastLoraDiagServiceMs;
+extern unsigned long lastLoraDiagRenderMs;
 extern M5Canvas contentCanvas;
+extern bool contentCanvasReady;
 extern BatteryTrend batteryTrend;
 extern WifiNetwork wifiNetworks[MAX_WIFI_NETWORKS];
 extern int wifiNetworkCount;
@@ -258,10 +268,13 @@ extern bool envPressureInvalid;
 extern bool i2cHubDetected;
 extern bool oledInitialized;
 extern bool oledOnline;
+extern bool loraDiagInitialized;
+extern bool loraIoExpanderDetected;
+extern bool loraRfSwitchEnabled;
+extern bool loraRadioReady;
+extern bool loraListening;
+extern bool loraGnssStarted;
 extern bool envLogging;
-extern bool nrf24Initialized;
-extern bool nrf24ChipConnected;
-extern bool nrf24Listening;
 extern File voiceMemoFile;
 extern File envLogFile;
 extern String voiceMemoStatus;
@@ -274,16 +287,18 @@ extern String envStatus;
 extern String i2cHubStatus;
 extern String oledStatus;
 extern String oledStatusLine;
+extern String loraStatus;
+extern String loraRadioStatus;
+extern String loraGnssStatus;
+extern String loraLastPacket;
+extern String loraLastNmeaLine;
 extern String envLogStatus;
 extern String envLogFileName;
 extern String envLogFilePath;
 extern String envLogNameInput;
-extern String nrf24Status;
-extern String rfScanStatus;
 extern uint32_t voiceMemoRecordedBytes;
 extern uint32_t envLogSampleCount;
 extern uint32_t oledDrawCount;
-extern uint32_t rfScanCompletedAtMs;
 extern unsigned long voiceMemoRecordingStartedMs;
 extern unsigned long lastVoiceMemoRenderMs;
 extern int16_t voiceRecordBuffer[VOICE_RECORD_CHUNK_SAMPLES];
@@ -292,19 +307,22 @@ extern int lastBatteryLevel;
 extern int lastVbusVoltageMv;
 extern int lastBatteryCurrentMa;
 extern int i2cHubActiveChannel;
+extern int loraRadioState;
 extern uint8_t oledActiveAddress;
 extern m5::Power_Class::is_charging_t lastChargingStatus;
 extern float envTemperatureC;
 extern float envHumidityPercent;
 extern float envPressureHpa;
+extern float loraLastRssi;
+extern float loraLastSnr;
+extern uint32_t loraPacketCount;
+extern uint32_t loraCrcErrorCount;
+extern uint32_t loraReceiveErrorCount;
+extern uint32_t loraGnssByteCount;
+extern uint32_t loraGnssLineCount;
 extern float smoothedLevelX;
 extern float smoothedLevelY;
 extern bool levelSmoothingInitialized;
-extern bool rfScanHasData;
-extern bool rfScanInProgress;
-extern uint8_t rfScanActivity[RF_SCAN_CHANNEL_COUNT];
-extern uint8_t rfScanQuietChannels[RF_SCAN_QUIET_COUNT];
-extern uint8_t rfScanSelectedChannel;
 
 void showMainMenu();
 void showBatteryInfo();
@@ -331,12 +349,18 @@ void serviceOledStatusDashboard();
 void renderOledStatusDashboard();
 void setOledStatusLine(const String& line);
 void clearOledStatusLine();
-void showRfScanner();
+void showLoraDiag();
+void renderLoraDiag();
+bool initLoraDiagnostics();
+void serviceLoraDiagnostics();
+void resetLoraDiagnostics();
+void stopLoraDiagnostics();
 void showLevelTool();
 
 void setScreen(Screen screen);
 void drawHeader(const char* title);
 void drawScreenFrame(const char* title);
+bool initContentCanvas();
 void beginContentDraw();
 void commitContentDraw();
 void handleKeyboard();
@@ -401,16 +425,6 @@ bool startEnvironmentLogging();
 bool startEnvironmentLogging(const String& requestedName);
 void stopEnvironmentLogging(const char* message);
 void appendEnvironmentLogSample();
-bool initNrf24Radio();
-void powerDownNrf24Radio();
-void resumeNrf24Listening();
-bool scanRfChannels();
-void renderRfScanner();
-void drawRfScanGraph();
-void updateQuietRfChannels();
-bool isQuietRfChannel(uint8_t channel);
-void moveRfScanSelection(int direction);
-const char* nrf24DataRateText(rf24_datarate_e dataRate);
 void resetLevelSmoothing();
 void drawLevelCrosshair(int centerX, int centerY);
 void drawLevelDot(int dotX, int dotY, bool isLevel);

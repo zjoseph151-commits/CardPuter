@@ -1,9 +1,12 @@
 import re
+from pathlib import Path
 
 from firmware_source import firmware_source_text
 
 
+ROOT = Path(__file__).resolve().parents[1]
 SOURCE = firmware_source_text()
+MAIN = (ROOT / "src" / "main.cpp").read_text(encoding="utf-8")
 
 
 def function_body(name):
@@ -31,7 +34,6 @@ def test_dynamic_screens_do_not_force_full_redraw():
         "showBatteryInfo",
         "showSystemInfo",
         "showEnvironment",
-        "showRfScanner",
         "showLevelTool",
     )
 
@@ -45,6 +47,24 @@ def test_dynamic_screens_do_not_force_full_redraw():
     )
 
 
+def test_content_canvas_allocation_is_guarded():
+    for token in [
+        "contentCanvasReady",
+        "initContentCanvas()",
+        "contentCanvas.setPsram(false)",
+        "contentCanvas.createSprite(width, height) != nullptr",
+        "CONTENT_CANVAS_FALLBACK_COLOR_DEPTH",
+        "contentCanvas.getBuffer() == nullptr",
+        "contentCanvas.pushSprite(&M5Cardputer.Display, 0, CONTENT_TOP)",
+    ]:
+        assert token in SOURCE, f"Missing guarded content canvas token: {token}"
+
+    assert "contentCanvas.createSprite(" not in MAIN, (
+        "setup() should use initContentCanvas() instead of unguarded sprite creation"
+    )
+
+
 if __name__ == "__main__":
     test_dynamic_screens_do_not_force_full_redraw()
+    test_content_canvas_allocation_is_guarded()
     print("Display refresh checks passed.")

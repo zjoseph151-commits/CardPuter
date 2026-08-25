@@ -213,19 +213,19 @@ void handleKeyboard() {
       oledInitialized = false;
       renderOledTest();
     }
-  } else if (currentScreen == Screen::RfScanner) {
+  } else if (currentScreen == Screen::LoraDiag) {
+    bool retry = keys.enter;
+
     for (char key : keys.word) {
       if (key == 'r' || key == 'R') {
-        scanRfChannels();
-      } else if (key == ';' || key == ',') {
-        moveRfScanSelection(-1);
-      } else if (key == '.' || key == '/') {
-        moveRfScanSelection(1);
+        retry = true;
       }
     }
 
-    if (keys.enter) {
-      scanRfChannels();
+    if (retry) {
+      stopLoraDiagnostics();
+      resetLoraDiagnostics();
+      showLoraDiag();
     }
   }
 }

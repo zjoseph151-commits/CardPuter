@@ -93,10 +93,10 @@ Rejected direction:
 - [x] Add `renderOledStatusDashboard()` for the compact five-line dashboard.
 - [x] Add `setOledStatusLine(...)` and `clearOledStatusLine()` so features can provide short context later without knowing U8g2 details.
 - [x] Show screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and compact feature context.
-- [x] Cover Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan first.
+- [x] Cover Main Menu, Pi Monitor, Environment, Voice Memos, and the then-active RF Scan first.
 - [x] Keep OLED on PaHub channel 1 and ENV III on PaHub channel 0.
 - [x] Keep graceful behavior when PaHub or OLED is missing.
-- [x] Hardware-test the OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan.
+- [x] Hardware-test the OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and the then-active RF Scan.
 - [x] Verify ENV III still reads on PaHub channel 0 after OLED dashboard updates.
 - [x] Verify keyboard navigation still feels normal while the dashboard is refreshing.
 

@@ -12,22 +12,19 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 - Consider units/settings: C/F toggle, pressure hPa/inHg toggle, refresh interval.
 
-## Priority 3: NRF24L01 Module Integration
+## Priority 3: NRF24L01 Module Integration (Removed)
 
-- Current RF Scan milestone is complete enough to move on; user confirmed it works on hardware on 2026-07-15.
-- Do not resume the XIAO two-node send/receive proof unless the user explicitly asks.
-- The XIAO ESP32-C3 OLED send/receive proof is retired for now after asymmetric behavior could not be resolved locally.
-- Current firmware milestone uses a simple RF channel scanner:
-  - Sweep channels 0-125
-  - show a per-channel activity bar graph
-  - highlight quiet channels for future NRF24 projects
+- NRF24L01 module feature is removed from the active Cardputer firmware as of 2026-08-25.
+- Reason: it used the Cardputer Adv EXT SPI path needed by the upcoming M5Stack Cap LoRa-1262 work.
+- No active NRF24/RF Scan source, menu item, or RF24 dependency should be restored unless the user explicitly changes direction.
+- The old XIAO ESP32-C3 OLED send/receive proof remains historical/archived only and should not guide new Cardputer firmware work.
 
 ## Priority 4: Project Structure Cleanup
 
 - Initial project structure cleanup is done.
 - `src/main.cpp` now contains only `setup()` and `loop()`.
 - Shared declarations live in `src/app.h`; shared globals/menu state live in `src/app_state.cpp`.
-- Feature code is split into `src/ui.cpp`, `src/input.cpp`, `src/power_screen.cpp`, `src/wifi_screens.cpp`, `src/voice_memos.cpp`, `src/environment_screen.cpp`, `src/rf_scanner.cpp`, and `src/level_tool.cpp`.
+- Feature code is split into `src/ui.cpp`, `src/input.cpp`, `src/power_screen.cpp`, `src/wifi_screens.cpp`, `src/voice_memos.cpp`, `src/environment_screen.cpp`, and `src/level_tool.cpp`.
 - Firmware guard scripts scan all source files through `tools/firmware_source.py`.
 - Future cleanup should stay incremental and only happen after guards/build pass.
 
@@ -135,13 +132,13 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Pi Monitor shows MQTT, target, command, and message/device context
   - Environment shows temperature, humidity, and valid pressure or `Press: invalid`
   - Voice Memos shows recording timer or selected memo/status
-  - RF Scan shows quiet channel and selected channel context
+  - Level shows compact level/tilt context
 - Hardware test checklist:
   - ENV III through Unit PaHub v2.1 channel 0: user confirmed mostly working on 2026-08-15
   - keyboard navigation with Unit PaHub v2.1 attached: user confirmed working on 2026-08-15
   - direct Grove ENV III fallback after this change: worth spot-checking
   - OLED Test through Unit PaHub v2.1 channel 1: user confirmed working on 2026-08-15
-  - OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and RF Scan: user confirmed everything is working on 2026-08-22
+  - OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and the then-active RF Scan: user confirmed everything is working on 2026-08-22
   - Environment after dashboard updates, with both modules attached: user confirmed working on 2026-08-22
   - keyboard navigation while dashboard is refreshing: user confirmed working on 2026-08-22
 - Priority #7 is complete enough. Next OLED work belongs under Priority #8.
@@ -161,7 +158,6 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Pi Monitor: show MQTT status, selected target, selected command, and compact activity.
   - Voice Memos: show recording timer, playback/recording state, file name, and storage status.
   - Environment: show temperature, humidity, pressure validity, logging state, and maybe trend later.
-  - RF Scan: show selected channel, quiet channel recommendations, and scan state.
   - Level: show compact X/Y or level/tilt status.
 - Add or update guards so feature-specific OLED helpers stay present and direct G8/G9 OLED wiring does not come back.
 - Run all guard scripts and `python -m platformio run` after each OLED customization pass.
@@ -204,18 +200,39 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - supports the 868-923 MHz LoRa band according to product/docs
 - Important conflict note:
   - the Cap LoRa-1262 uses the Cardputer Adv EXT interface
-  - current NRF24 RF Scan also uses EXT SPI-related pins
-  - do not assume NRF24 RF Scan hardware and Cap LoRa-1262 can be used at the same time
-  - document exact pin usage and decide whether LoRa temporarily replaces NRF24 for testing
-- First milestone should be diagnostics only:
-  - review M5Stack docs and pin map before coding
-  - choose a LoRa library compatible with SX1262 and ESP32-S3
-  - add a graceful "LoRa not found" diagnostics screen or status section
-  - verify GNSS serial path separately if used
-  - do not transmit until antenna, region/frequency, and TX power are deliberately set
-  - avoid interfering with Wi-Fi, microSD, OLED, ENV III, and keyboard behavior
+  - the NRF24L01/RF Scan feature was removed from active firmware to clear this path
+  - document exact LoRa/GNSS pin usage before coding
+- First milestone added on 2026-08-25 as diagnostics only:
+  - reviewed M5Stack docs and pin map before coding
+  - chose RadioLib for SX1262 on ESP32-S3, matching the official M5Stack Arduino quick start path
+  - added `LoRa Diag` screen with graceful `LoRa not found` status
+  - enabled PI4IOE5V6408 `P0` high for the cap RF antenna switch when the cap is detected
+  - verifies ATGM336H GNSS serial path separately with `115200` 8N1 byte/NMEA counters
+  - No transmit behavior is enabled
+  - avoids broad background use by servicing LoRa/GNSS only while `LoRa Diag` is active
+- Documented Cap LoRa-1262 pin usage:
+  - `G5 NSS`
+  - `G4 IRQ`
+  - `G3 RST`
+  - `G6 BUSY`
+  - `G40 SCK`
+  - `G14 MOSI`
+  - `G39 MISO`
+  - `G15 GPS-TX` to Cardputer RX
+  - `G13 GPS-RX` from Cardputer TX
+  - `G8/G9` internal I2C for PI4IOE5V6408 and HY2.0-4P
+  - PI4IOE5V6408 `P0` controls the antenna switch
+- Shared EXT conflict notes:
+  - LoRa and microSD share SPI signal pins `G40/G39/G14`
+  - LoRa uses `G5 NSS`; microSD uses `G12 CS`
+  - `LoRa Diag` drives microSD CS high before LoRa init
+  - G8/G9 must remain reserved for Cardputer/cap internal I2C and should not be used directly for OLED/ENV hardware
+- Next Priority #10 steps after hardware testing:
+  - confirm cap detection, SX1262 listen status, and ATGM336H GNSS bytes/NMEA lines with antenna installed
+  - choose legal region/frequency, bandwidth/spreading plan, and TX power before any TX work
+  - decide whether to parse GNSS with TinyGPSPlus or keep raw NMEA status
 - Guard requirements:
-  - preserve current NRF24 RF Scan code unless the user explicitly chooses to replace it
+  - keep NRF24/RF Scan out of active firmware unless the user explicitly chooses to restore it
   - document any shared EXT pin conflicts
   - PlatformIO build must pass
 
@@ -249,9 +266,12 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Retired the active XIAO two-node proof after testing showed Cardputer-to-XIAO worked, XIAO TX/OK increased with no failures, but Cardputer did not decode XIAO beacons or replies.
 - Replaced the active NRF24 diagnostics screen with an RF channel scanner that sweeps 0-125, draws a bar graph, and highlights quiet channels.
 - User confirmed RF Scan is working fine on Cardputer hardware on 2026-07-15.
+- Removed the active NRF24L01 / RF Scan firmware feature on 2026-08-25 to avoid conflicts with the upcoming Cap LoRa-1262 EXT interface work.
 - Split the Cardputer firmware out of monolithic `src/main.cpp` into shared app state plus feature modules while keeping guards and PlatformIO build passing.
 - Main menu header now reads `Scoober (Use arrows, OK to select)` and menu rows were shifted up to fit cleanly.
 - Voice Memos and Environment titles now carry their first-line context, freeing content space for feature data.
+- Added guarded content-canvas allocation with non-PSRAM and 8-bit fallback after hardware reset reports when entering feature screens.
+- Added RX-only M5Stack Cap LoRa-1262 diagnostics screen with RadioLib SX1262 receive init, PI4IOE5V6408 antenna switch detection/control, `LoRa not found` graceful status, and ATGM336H GNSS UART byte/NMEA counters.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
 - User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.

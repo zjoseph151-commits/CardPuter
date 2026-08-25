@@ -11,15 +11,11 @@ void setup() {
   M5Cardputer.Display.setTextSize(1);
   M5Cardputer.Display.setTextColor(WHITE, BLACK);
   M5Cardputer.Display.fillScreen(BLACK);
-  contentCanvas.setColorDepth(16);
-  contentCanvas.createSprite(M5Cardputer.Display.width(),
-                             M5Cardputer.Display.height() - CONTENT_TOP);
-  contentCanvas.setFont(&fonts::Font2);
-  contentCanvas.setTextSize(1);
 
   Serial.println();
   Serial.println(FIRMWARE_NAME);
   Serial.println(FIRMWARE_VERSION);
+  Serial.printf("Reset reason: %d\n", static_cast<int>(esp_reset_reason()));
   loadSavedWifiNames();
   sampleBatteryStatus();
 
@@ -29,6 +25,7 @@ void setup() {
   M5Cardputer.Display.println(FIRMWARE_VERSION);
   delay(1200);
 
+  initContentCanvas();
   setScreen(Screen::MainMenu);
 }
 
@@ -66,6 +63,10 @@ void loop() {
 
   if (currentScreen == Screen::PiMonitor) {
     servicePiMonitor();
+  }
+
+  if (currentScreen == Screen::LoraDiag) {
+    serviceLoraDiagnostics();
   }
 
   serviceOledStatusDashboard();

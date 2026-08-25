@@ -15,7 +15,7 @@ def test_scoober_menu_structure():
     assert '"Voice Memos"' in SOURCE
     assert '"Environment"' in SOURCE
     assert '"OLED Test"' in SOURCE
-    assert '"RF Scan"' in SOURCE
+    assert '"LoRa Diag"' in SOURCE
     assert '"Level"' in SOURCE
 
     removed_labels = (
@@ -28,6 +28,7 @@ def test_scoober_menu_structure():
         "Backspace/ESC = menu",
         "Project Launcher",
         "IMU Test",
+        "RF Scan",
     )
     for label in removed_labels:
         assert label not in SOURCE
@@ -37,8 +38,16 @@ def test_scoober_menu_structure():
         "showDisplayTest",
         "showSdTest",
         "showEspNowPlaceholder",
+        "showRfScanner",
     )
     for symbol in removed_symbols:
+        assert symbol not in SOURCE
+
+    removed_screen_symbols = (
+        "Screen::RfScanner",
+        "RfScanner",
+    )
+    for symbol in removed_screen_symbols:
         assert symbol not in SOURCE
 
     assert "selectedMenuIndex" in SOURCE

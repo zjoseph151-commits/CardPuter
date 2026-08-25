@@ -1,7 +1,7 @@
 # XIAO ESP32-C3 NRF24 OLED Test Node
 
 This is the archived second NRF24L01 proof node for the Scoober Cardputer firmware.
-The active Cardputer feature has moved to `RF Scan`; keep this node for future bench testing.
+The matching Cardputer NRF24/RF Scan feature was removed from active firmware on 2026-08-25; keep this node only for future bench archaeology if explicitly requested.
 
 It uses:
 
@@ -84,7 +84,7 @@ The original expected proof was:
 
 1. Flash the Cardputer firmware.
 2. Flash this XIAO node firmware.
-3. Open the Cardputer NRF24 feature.
+3. Open the historical Cardputer NRF24 feature from an older firmware revision.
 4. Confirm the XIAO OLED shows `Radio: Ready`.
 5. Confirm the Cardputer receives `XIAO beacon N`.
 6. Press `T` on the Cardputer.

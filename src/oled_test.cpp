@@ -32,8 +32,8 @@ String screenTitleForOled() {
       return "Environment";
     case Screen::OledTest:
       return "OLED Test";
-    case Screen::RfScanner:
-      return "RF Scan";
+    case Screen::LoraDiag:
+      return "LoRa Diag";
     case Screen::LevelTool:
       return "Level";
     default:
@@ -198,32 +198,6 @@ String oledVoiceMemoLine() {
                           : "SD: missing";
 }
 
-String oledRfQuietLine() {
-  if (!rfScanHasData) {
-    return rfScanStatus.length() > 0 ? rfScanStatus : "No scan yet";
-  }
-
-  String line = "Quiet:";
-  for (uint8_t i = 0; i < RF_SCAN_QUIET_COUNT; ++i) {
-    if (rfScanQuietChannels[i] < RF_SCAN_CHANNEL_COUNT) {
-      line += " ";
-      line += String(rfScanQuietChannels[i]);
-    }
-  }
-
-  return line;
-}
-
-String oledRfChannelLine() {
-  if (!nrf24Initialized || !nrf24ChipConnected) {
-    return "Radio: not found";
-  }
-
-  return String("CH: ") + String(rfScanSelectedChannel) + " Act:" +
-         String(rfScanActivity[rfScanSelectedChannel]) + "/" +
-         String(RF_SCAN_SAMPLE_COUNT);
-}
-
 String oledLevelLine() {
   if (!levelSmoothingInitialized) {
     return "Level: waiting";
@@ -290,14 +264,6 @@ void buildVoiceMemoOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
                                 : "OK play R rec";
 }
 
-void buildRfScanOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
-  lines[0] = "RF Scan";
-  lines[1] = nrf24ChipConnected ? "Radio: Ready" : "Radio: Missing";
-  lines[2] = oledRfQuietLine();
-  lines[3] = oledRfChannelLine();
-  lines[4] = rfScanInProgress ? "Scanning..." : "R scan";
-}
-
 void buildWifiOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
   lines[0] = screenTitleForOled();
   lines[1] = oledWifiLine();
@@ -335,6 +301,17 @@ void buildWifiOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
   lines[4] = "OK retry D disc";
 }
 
+void buildLoraDiagOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  lines[0] = "LoRa Diag";
+  lines[1] = loraIoExpanderDetected ? "Cap: LoRa-1262" : "Cap: not found";
+  lines[2] = loraRadioReady
+                 ? (loraListening ? "Radio: listening" : "Radio: ready")
+                 : "Radio: not found";
+  lines[3] = String("RX:") + String(loraPacketCount) + " GNSS:" +
+             String(loraGnssLineCount);
+  lines[4] = "RX only No TX";
+}
+
 void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
   buildDefaultOledLines(lines);
 
@@ -363,8 +340,8 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
     case Screen::EnvironmentLogName:
       buildEnvironmentOledLines(lines);
       break;
-    case Screen::RfScanner:
-      buildRfScanOledLines(lines);
+    case Screen::LoraDiag:
+      buildLoraDiagOledLines(lines);
       break;
     case Screen::LevelTool:
       lines[4] = oledLevelLine();

@@ -1,11 +1,11 @@
 #include "app.h"
 
 void setScreen(Screen screen) {
-  if (currentScreen == Screen::RfScanner && screen != Screen::RfScanner) {
-    powerDownNrf24Radio();
-  }
   if (currentScreen == Screen::PiMonitor && screen != Screen::PiMonitor) {
     stopPiMonitor();
+  }
+  if (currentScreen == Screen::LoraDiag && screen != Screen::LoraDiag) {
+    stopLoraDiagnostics();
   }
 
   currentScreen = screen;
@@ -14,6 +14,7 @@ void setScreen(Screen screen) {
   lastLevelRefreshMs = 0;
   lastOledRefreshMs = 0;
   lastEnvironmentRefreshMs = 0;
+  lastLoraDiagRenderMs = 0;
 
   switch (currentScreen) {
     case Screen::MainMenu:
@@ -87,10 +88,9 @@ void setScreen(Screen screen) {
       drawScreenFrame("OLED Test (PaHub ch1)");
       showOledTest();
       break;
-    case Screen::RfScanner:
-      drawScreenFrame("RF Scan");
-      initNrf24Radio();
-      showRfScanner();
+    case Screen::LoraDiag:
+      drawScreenFrame("LoRa Diag (RX only)");
+      showLoraDiag();
       break;
     case Screen::LevelTool:
       resetLevelSmoothing();
@@ -113,14 +113,60 @@ void drawScreenFrame(const char* title) {
   drawHeader(title);
 }
 
+bool initContentCanvas() {
+  const int width = M5Cardputer.Display.width();
+  const int height = M5Cardputer.Display.height() - CONTENT_TOP;
+
+  contentCanvas.deleteSprite();
+  contentCanvas.setPsram(false);
+  contentCanvas.setColorDepth(CONTENT_CANVAS_COLOR_DEPTH);
+  contentCanvasReady = contentCanvas.createSprite(width, height) != nullptr;
+
+  if (!contentCanvasReady) {
+    contentCanvas.deleteSprite();
+    contentCanvas.setColorDepth(CONTENT_CANVAS_FALLBACK_COLOR_DEPTH);
+    contentCanvasReady = contentCanvas.createSprite(width, height) != nullptr;
+  }
+
+  if (contentCanvasReady) {
+    contentCanvas.setFont(&fonts::Font2);
+    contentCanvas.setTextSize(1);
+    Serial.printf("Display: content canvas ready %dx%d depth=%u heap=%u\n",
+                  width, height, contentCanvas.getColorDepth(), ESP.getFreeHeap());
+  } else {
+    Serial.printf("Display: content canvas allocation failed %dx%d heap=%u\n",
+                  width, height, ESP.getFreeHeap());
+  }
+
+  return contentCanvasReady;
+}
+
 void beginContentDraw() {
+  if (!contentCanvasReady || contentCanvas.getBuffer() == nullptr) {
+    initContentCanvas();
+  }
+
+  if (!contentCanvasReady) {
+    M5Cardputer.Display.fillRect(0, CONTENT_TOP, M5Cardputer.Display.width(),
+                                 M5Cardputer.Display.height() - CONTENT_TOP, BLACK);
+    M5Cardputer.Display.setTextColor(WHITE, BLACK);
+    M5Cardputer.Display.setCursor(8, CONTENT_TOP + 4);
+    M5Cardputer.Display.println("Display buffer error");
+    M5Cardputer.Display.println("Try USB power/reboot.");
+    return;
+  }
+
   contentCanvas.fillScreen(BLACK);
   contentCanvas.setTextColor(WHITE, BLACK);
   contentCanvas.setCursor(8, 4);
 }
 
 void commitContentDraw() {
-  contentCanvas.pushSprite(0, CONTENT_TOP);
+  if (!contentCanvasReady || contentCanvas.getBuffer() == nullptr) {
+    return;
+  }
+
+  contentCanvas.pushSprite(&M5Cardputer.Display, 0, CONTENT_TOP);
 }
 
 void showMainMenu() {

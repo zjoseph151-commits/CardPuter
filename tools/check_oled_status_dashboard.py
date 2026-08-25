@@ -32,7 +32,8 @@ required_source_tokens = [
     "buildPiMonitorOledLines",
     "buildEnvironmentOledLines",
     "buildVoiceMemoOledLines",
-    "buildRfScanOledLines",
+    "buildWifiOledLines",
+    "buildLoraDiagOledLines",
     "oledBatteryLine()",
     "oledWifiLine()",
     "oledMqttLine()",
@@ -47,7 +48,8 @@ required_source_tokens = [
     "Cmd: ",
     "REC %02lu:%02lu",
     "Press: invalid",
-    "Quiet:",
+    "RX only No TX",
+    "oledLevelLine()",
 ]
 
 for token in required_source_tokens:
@@ -58,6 +60,9 @@ forbidden_source_tokens = [
     "OLED_SCL_PIN",
     "SDA -> Cardputer G2",
     "SCL -> Cardputer G1",
+    "buildRfScanOledLines",
+    "Screen::RfScanner",
+    "rfScan",
 ]
 
 for token in forbidden_source_tokens:
