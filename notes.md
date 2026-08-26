@@ -452,6 +452,7 @@ Priority #10: add M5Stack Cap LoRa-1262 for Cardputer Adv.
 - User confirmed on hardware on 2026-08-25 that cap detection, RF switch, radio init, live RSSI, and GNSS NMEA output are working.
 - GNSS parser milestone uses the M5Stack TinyGPSPlus GitHub library, matching the official M5Stack Cap LoRa-1262 tutorial note.
 - The parser displays fix/no-fix, satellites, HDOP, latitude, longitude, UTC time, NMEA sentence count, and checksum failures.
+- User confirmed on hardware on 2026-08-26 that the GNSS parser is working.
 - `LORA_GNSS_FIX_STALE_MS = 5000` keeps an old location from looking current.
 - No transmit behavior is enabled.
 - Do not transmit until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately set.

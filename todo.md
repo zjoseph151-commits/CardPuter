@@ -233,6 +233,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - confirm cap detection, SX1262 listen status, and ATGM336H GNSS bytes/NMEA lines with antenna installed
   - hardware confirmed on 2026-08-25: cap/RF/radio status, live RSSI, and GNSS NMEA output are working
   - hardware-test parsed GNSS fix outside or near a window and confirm satellites/HDOP/location/UTC populate
+  - hardware confirmed on 2026-08-26: GNSS parser is working
   - choose legal region/frequency, bandwidth/spreading plan, and TX power before any TX work
   - decide how parsed GNSS should be reused by other features, such as timestamps or location-aware logs
 - Guard requirements:
@@ -301,6 +302,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Added RX-only M5Stack Cap LoRa-1262 diagnostics screen with RadioLib SX1262 receive init, PI4IOE5V6408 antenna switch detection/control, `LoRa not found` graceful status, and ATGM336H GNSS UART byte/NMEA counters.
 - User confirmed Cap LoRa-1262 diagnostics are working on Cardputer hardware on 2026-08-25.
 - Added TinyGPSPlus GNSS parsing to `LoRa Diag` for fix status, satellites, HDOP, latitude, longitude, UTC time, and checksum counters.
+- User confirmed Cap LoRa-1262 GNSS parsing is working on Cardputer hardware on 2026-08-26.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
 - User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.

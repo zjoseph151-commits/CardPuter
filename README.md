@@ -63,6 +63,7 @@ Current state:
 - Has an RX-only Cap LoRa-1262 diagnostics screen with graceful `LoRa not found` status and separate GNSS UART byte/line counters.
 - Has a GNSS parser for Cap LoRa-1262 using TinyGPSPlus.
 - User confirmed Cap LoRa-1262 diagnostics are working on hardware on 2026-08-25.
+- User confirmed the Cap LoRa-1262 GNSS parser is working on hardware on 2026-08-26.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - Has no active ESP-NOW code.
@@ -619,6 +620,7 @@ Behavior:
 - Shows parsed GNSS fix/no-fix, satellites, HDOP, latitude, longitude, UTC time, sentence count, and checksum errors.
 - SNR is packet-only; it shows `--pkt` until a LoRa packet is received.
 - User confirmed the screen reports cap/RF/radio status, live RSSI, and GNSS NMEA output on hardware on 2026-08-25.
+- User confirmed parsed GNSS status is working on hardware on 2026-08-26.
 - Adds compact LoRa status lines to the SSD1309 OLED Status Dashboard.
 - OK/Enter or R restarts diagnostics.
 - Backspace returns to the main menu and stops the radio/GNSS diagnostics objects.
