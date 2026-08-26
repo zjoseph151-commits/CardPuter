@@ -27,7 +27,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
 - `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
-- `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 and ATGM336H GNSS UART counters.
+- `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 and TinyGPSPlus for ATGM336H GNSS parsing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
 - Firmware guard scripts use `tools/firmware_source.py` so checks scan all `.cpp` and `.h` files under `src`.
 
@@ -447,7 +447,12 @@ Priority #10: add M5Stack Cap LoRa-1262 for Cardputer Adv.
 - First diagnostics milestone is active as `LoRa Diag`.
 - RadioLib was chosen for SX1262 because the official M5Stack Arduino quick start uses RadioLib for this cap family.
 - The screen detects PI4IOE5V6408 at `0x43`, sets `P0` high for the SX1262 antenna switch, starts SX1262 receive mode, and reports `LoRa not found` gracefully when the cap/radio is absent.
+- RSSI displays live channel RSSI with `getRSSI(false)` before any packet is received; SNR is packet-only and displays `--pkt` until a matching LoRa packet arrives.
 - The ATGM336H GNSS path is verified separately with `HardwareSerial` at `115200` 8N1 and byte/NMEA line counters.
+- User confirmed on hardware on 2026-08-25 that cap detection, RF switch, radio init, live RSSI, and GNSS NMEA output are working.
+- GNSS parser milestone uses the M5Stack TinyGPSPlus GitHub library, matching the official M5Stack Cap LoRa-1262 tutorial note.
+- The parser displays fix/no-fix, satellites, HDOP, latitude, longitude, UTC time, NMEA sentence count, and checksum failures.
+- `LORA_GNSS_FIX_STALE_MS = 5000` keeps an old location from looking current.
 - No transmit behavior is enabled.
 - Do not transmit until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately set.
 

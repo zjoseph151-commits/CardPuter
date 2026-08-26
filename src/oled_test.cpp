@@ -307,9 +307,13 @@ void buildLoraDiagOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
   lines[2] = loraRadioReady
                  ? (loraListening ? "Radio: listening" : "Radio: ready")
                  : "Radio: not found";
-  lines[3] = String("RX:") + String(loraPacketCount) + " GNSS:" +
-             String(loraGnssLineCount);
-  lines[4] = "RX only No TX";
+  lines[3] = loraGnssLocationValid
+                 ? String("GNSS Fix Sat:") + String(loraGnssSatellites)
+                 : String("GNSS NoFix L:") + String(loraGnssLineCount);
+  lines[4] = loraGnssLocationValid
+                 ? String(loraGnssLatitude, 5) + "," +
+                       String(loraGnssLongitude, 5)
+                 : "RX only No TX";
 }
 
 void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {

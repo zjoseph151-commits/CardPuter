@@ -61,6 +61,8 @@ Current state:
 - Uses microSD for voice memo storage.
 - Has no active NRF24L01/RF Scan feature or RF24 dependency in the main Cardputer firmware.
 - Has an RX-only Cap LoRa-1262 diagnostics screen with graceful `LoRa not found` status and separate GNSS UART byte/line counters.
+- Has a GNSS parser for Cap LoRa-1262 using TinyGPSPlus.
+- User confirmed Cap LoRa-1262 diagnostics are working on hardware on 2026-08-25.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - Has no active ESP-NOW code.
@@ -125,6 +127,7 @@ Next planned hardware:
   - It connects through the Cardputer Adv EXT interface.
   - The old NRF24/RF Scan firmware path has been removed so LoRa/GNSS diagnostics can claim the EXT path cleanly.
   - First milestone is active as `LoRa Diag`: detect the PI4IOE5V6408 antenna-switch expander, initialize SX1262 with RadioLib in receive-only mode, and count GNSS UART bytes/NMEA lines.
+  - GNSS parser milestone uses TinyGPSPlus to show fix status, satellites, HDOP, coordinates, UTC time, and checksum counters.
   - Do not transmit until antenna, region/frequency, and TX power are deliberately set.
 
 ## Software, Libraries, And Frameworks
@@ -153,6 +156,7 @@ Libraries in [platformio.ini](platformio.ini):
 - `bblanchon/ArduinoJson@^6.21.5`
 - `olikraus/U8g2@^2.36.12`
 - `jgromes/RadioLib`
+- `https://github.com/m5stack/TinyGPSPlus.git`
 
 RF24 dependency is not used by the main firmware.
 
@@ -168,6 +172,7 @@ Arduino/core libraries used by the firmware:
 - `PubSubClient.h`
 - `ArduinoJson.h`
 - `RadioLib.h`
+- `TinyGPSPlus.h`
 - `math.h`
 
 Important build note:
@@ -247,7 +252,7 @@ File responsibilities:
 - [src/i2c_hub.cpp](src/i2c_hub.cpp): optional M5Stack Unit PaHub v2.1 detection and channel selection for shared Grove I2C.
 - [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
 - [src/oled_test.cpp](src/oled_test.cpp): SSD1309 OLED Status Dashboard plus OLED Test diagnostics on PaHub channel 1.
-- [src/lora_diag.cpp](src/lora_diag.cpp): RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 and GNSS UART counters.
+- [src/lora_diag.cpp](src/lora_diag.cpp): RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 and TinyGPSPlus for parsed GNSS status.
 - [src/level_tool.cpp](src/level_tool.cpp): BMI270 level/crosshair tool.
 - [platformio.ini](platformio.ini): board/framework/library configuration.
 - [nodes/xiao_nrf24_oled](nodes/xiao_nrf24_oled): archived separate PlatformIO project for the XIAO ESP32-C3 NRF24/OLED proof node.
@@ -609,7 +614,11 @@ Behavior:
 - Enables the required antenna switch by setting PI4IOE5V6408 `P0` high.
 - Initializes SX1262 receive mode only and shows `LoRa not found` instead of crashing when the cap or radio is absent.
 - Starts the ATGM336H GNSS serial path separately at `115200` 8N1 and counts bytes/NMEA lines.
-- Shows packet count, RSSI, SNR, GNSS byte/line counts, and the latest clipped NMEA line on the built-in LCD.
+- Adds a GNSS parser using TinyGPSPlus.
+- Shows packet count, live channel RSSI before the first packet, packet RSSI/SNR after a matching LoRa packet, GNSS byte/line counts, and the latest clipped NMEA line on the built-in LCD.
+- Shows parsed GNSS fix/no-fix, satellites, HDOP, latitude, longitude, UTC time, sentence count, and checksum errors.
+- SNR is packet-only; it shows `--pkt` until a LoRa packet is received.
+- User confirmed the screen reports cap/RF/radio status, live RSSI, and GNSS NMEA output on hardware on 2026-08-25.
 - Adds compact LoRa status lines to the SSD1309 OLED Status Dashboard.
 - OK/Enter or R restarts diagnostics.
 - Backspace returns to the main menu and stops the radio/GNSS diagnostics objects.
@@ -658,6 +667,7 @@ LoRa constants:
 - `LORA_DIAG_CODING_RATE = 5`
 - `LORA_DIAG_SYNC_WORD = 0x34`
 - `LORA_DIAG_PREAMBLE_LEN = 20`
+- `LORA_GNSS_FIX_STALE_MS = 5000`
 
 ### NRF24L01 / RF Scan Removal
 
@@ -807,6 +817,7 @@ Current active communication paths:
   - `LoRa Diag` is receive-only and uses RadioLib to initialize SX1262 and start `startReceive()`.
   - Missing cap/radio reports `LoRa not found` on screen and serial instead of blocking the firmware.
   - GNSS is verified separately through ATGM336H UART at `115200` 8N1 with Cardputer RX `G15 GPS-TX` and Cardputer TX `G13 GPS-RX`.
+  - TinyGPSPlus parses GNSS NMEA into fix status, satellites, HDOP, coordinates, UTC time, and checksum counters.
   - No transmit behavior is enabled.
 - **ESP-NOW**
   - Not implemented.
@@ -992,8 +1003,8 @@ Guard script:
 
 Highest priority:
 
-1. Hardware-test `LoRa Diag` with the Cap LoRa-1262 attached and antenna installed.
-2. Confirm the screen reports the PI4IOE5V6408 cap expander, SX1262 listening status, and ATGM336H GNSS bytes/NMEA lines.
+1. Hardware-test parsed GNSS status outside or near a window with the Cap LoRa-1262 antenna installed.
+2. Confirm `LoRa Diag` moves from `NoFix` to `Fix`, shows satellites/HDOP, and displays latitude/longitude/UTC once the GNSS module has sky view.
 3. Keep OLED drawing centralized and keep OLED on PaHub channel 1.
 4. Keep ENV III on PaHub channel 0.
 

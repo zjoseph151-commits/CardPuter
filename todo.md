@@ -207,7 +207,9 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - chose RadioLib for SX1262 on ESP32-S3, matching the official M5Stack Arduino quick start path
   - added `LoRa Diag` screen with graceful `LoRa not found` status
   - enabled PI4IOE5V6408 `P0` high for the cap RF antenna switch when the cap is detected
+  - displays live channel RSSI before first packet; SNR remains packet-only as `--pkt` until a matching LoRa packet is received
   - verifies ATGM336H GNSS serial path separately with `115200` 8N1 byte/NMEA counters
+  - adds GNSS parser with TinyGPSPlus for fix/no-fix, satellites, HDOP, latitude, longitude, UTC time, and checksum counters
   - No transmit behavior is enabled
   - avoids broad background use by servicing LoRa/GNSS only while `LoRa Diag` is active
 - Documented Cap LoRa-1262 pin usage:
@@ -229,12 +231,37 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - G8/G9 must remain reserved for Cardputer/cap internal I2C and should not be used directly for OLED/ENV hardware
 - Next Priority #10 steps after hardware testing:
   - confirm cap detection, SX1262 listen status, and ATGM336H GNSS bytes/NMEA lines with antenna installed
+  - hardware confirmed on 2026-08-25: cap/RF/radio status, live RSSI, and GNSS NMEA output are working
+  - hardware-test parsed GNSS fix outside or near a window and confirm satellites/HDOP/location/UTC populate
   - choose legal region/frequency, bandwidth/spreading plan, and TX power before any TX work
-  - decide whether to parse GNSS with TinyGPSPlus or keep raw NMEA status
+  - decide how parsed GNSS should be reused by other features, such as timestamps or location-aware logs
 - Guard requirements:
   - keep NRF24/RF Scan out of active firmware unless the user explicitly chooses to restore it
   - document any shared EXT pin conflicts
   - PlatformIO build must pass
+
+## Priority 11: Cap LoRa-1262 Feature Expansion
+
+- Use this priority for future Cap LoRa-1262 features after the diagnostics/GNSS parser foundation is stable.
+- Keep the Cap LoRa-1262 work split into separate menu features when that makes the UI clearer; do not force everything into one feature screen.
+- Maintain the current safety boundary: no LoRa transmit behavior until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately chosen.
+- Feature ideas to implement:
+  - GNSS Dashboard: fix/no-fix state, satellites, HDOP, latitude/longitude, speed, altitude, and UTC clock.
+  - Waypoint / Return Home: mark a saved point, then show distance and bearing back to it.
+  - Breadcrumb Logger: save GPX/CSV track logs to microSD, with optional ENV III readings later.
+  - LoRa Packet Monitor: RX-only packet viewer for matching LoRa settings, including packet count, payload preview, RSSI, SNR, frequency, spreading factor, and bandwidth.
+  - LoRa Range Test: with a second LoRa node later, send pings/acks and log RSSI/SNR over distance.
+  - Scoober Pager: simple LoRa short-message texting between devices, starting with canned messages.
+  - Location Beacon: periodically broadcast device ID, battery, and optional GPS position after transmit guardrails are defined.
+  - MQTT LoRa Bridge: when Wi-Fi is connected, forward received LoRa packets into the Raspberry Pi MQTT system.
+  - Signal Map: log GPS position plus LoRa RSSI/SNR from a known beacon for coverage mapping.
+  - Treasure Hunt Mode: store waypoints on microSD and navigate to them with distance/bearing hints.
+- Recommended implementation order:
+  - GNSS Dashboard
+  - Waypoint / Return Home
+  - Breadcrumb Logger
+  - LoRa Packet Monitor
+  - Remaining transmit-capable features after explicit LoRa TX planning
 
 ## Done / Historical Milestones
 
@@ -272,6 +299,8 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Voice Memos and Environment titles now carry their first-line context, freeing content space for feature data.
 - Added guarded content-canvas allocation with non-PSRAM and 8-bit fallback after hardware reset reports when entering feature screens.
 - Added RX-only M5Stack Cap LoRa-1262 diagnostics screen with RadioLib SX1262 receive init, PI4IOE5V6408 antenna switch detection/control, `LoRa not found` graceful status, and ATGM336H GNSS UART byte/NMEA counters.
+- User confirmed Cap LoRa-1262 diagnostics are working on Cardputer hardware on 2026-08-25.
+- Added TinyGPSPlus GNSS parsing to `LoRa Diag` for fix status, satellites, HDOP, latitude, longitude, UTC time, and checksum counters.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
 - User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.

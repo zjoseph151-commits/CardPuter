@@ -23,17 +23,23 @@ def assert_tokens_absent(text, tokens, label):
 
 def test_lora_cap_diagnostics_source():
     assert "jgromes/RadioLib" in PLATFORMIO, "RadioLib dependency is required"
+    assert "https://github.com/m5stack/TinyGPSPlus.git" in PLATFORMIO, (
+        "M5Stack TinyGPSPlus dependency is required"
+    )
     assert "nrf24/RF24" not in PLATFORMIO, "RF24 must stay out of main firmware"
 
     require_tokens(
         SOURCE,
         [
             "#include <RadioLib.h>",
+            "#include <TinyGPSPlus.h>",
             "#include \"utility/PI4IOE5V6408_Class.hpp\"",
             "Screen::LoraDiag",
             "{\"LoRa Diag\", Screen::LoraDiag}",
             "SX1262 loraRadio = new Module(LORA_NSS_PIN, LORA_IRQ_PIN, LORA_RST_PIN,",
             "HardwareSerial loraGnssSerial(1)",
+            "TinyGPSPlus loraGps",
+            "loraGps = TinyGPSPlus()",
             "LORA_RST_PIN = 3",
             "LORA_IRQ_PIN = 4",
             "LORA_NSS_PIN = 5",
@@ -52,6 +58,19 @@ def test_lora_cap_diagnostics_source():
             "loraRadio.setPacketReceivedAction(setLoraPacketReceivedFlag)",
             "loraRadio.startReceive()",
             "loraRadio.readData(packet)",
+            "loraRadio.getRSSI(false)",
+            "--pkt",
+            "loraGps.encode(ch)",
+            "loraGps.location.isValid()",
+            "loraGps.location.lat()",
+            "loraGps.location.lng()",
+            "loraGps.satellites.value()",
+            "loraGps.hdop.hdop()",
+            "loraGps.time.hour()",
+            "loraGps.date.year()",
+            "loraGnssHasFreshFix()",
+            "LORA_GNSS_FIX_STALE_MS = 5000",
+            "GNSS:%s S:%s HD:%s",
             "SERIAL_8N1",
             "LORA_DIAG_NO_TX_NOTICE",
             "RX only. No TX.",
@@ -91,6 +110,8 @@ def test_lora_cap_diagnostics_docs():
                 "SX1262",
                 "ATGM336H",
                 "RadioLib",
+                "TinyGPSPlus",
+                "GNSS parser",
                 "LoRa not found",
                 "No transmit",
                 "G5 NSS",
