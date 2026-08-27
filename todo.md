@@ -228,12 +228,14 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - LoRa and microSD share SPI signal pins `G40/G39/G14`
   - LoRa uses `G5 NSS`; microSD uses `G12 CS`
   - `LoRa Diag` drives microSD CS high before LoRa init
+  - SD-backed features drive LoRa `NSS` high and re-begin SPI for microSD after LoRa diagnostics have owned the bus
   - G8/G9 must remain reserved for Cardputer/cap internal I2C and should not be used directly for OLED/ENV hardware
 - Next Priority #10 steps after hardware testing:
   - confirm cap detection, SX1262 listen status, and ATGM336H GNSS bytes/NMEA lines with antenna installed
   - hardware confirmed on 2026-08-25: cap/RF/radio status, live RSSI, and GNSS NMEA output are working
   - hardware-test parsed GNSS fix outside or near a window and confirm satellites/HDOP/location/UTC populate
   - hardware confirmed on 2026-08-26: GNSS parser is working
+  - retest Voice Memos after `LoRa Diag`; user reported SD init failed before the shared SPI handoff fix
   - choose legal region/frequency, bandwidth/spreading plan, and TX power before any TX work
   - decide how parsed GNSS should be reused by other features, such as timestamps or location-aware logs
 - Guard requirements:
@@ -246,8 +248,26 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Use this priority for future Cap LoRa-1262 features after the diagnostics/GNSS parser foundation is stable.
 - Keep the Cap LoRa-1262 work split into separate menu features when that makes the UI clearer; do not force everything into one feature screen.
 - Maintain the current safety boundary: no LoRa transmit behavior until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately chosen.
+- First milestone added: `GNSS Dash`.
+  - Uses shared TinyGPSPlus parser from the Cap LoRa-1262 ATGM336H GNSS UART.
+  - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
+  - Shows fix/no-fix, satellites, HDOP, latitude/longitude, speed, altitude, UTC/date, fix age, NMEA lines, checksum counts, and byte count.
+  - Adds compact GNSS Dashboard lines to the OLED Status Dashboard.
+  - No transmit path is enabled.
+  - User reported this screen is looking good on hardware on 2026-08-26.
+  - Guard: `tools/check_lora_gnss_dashboard.py`.
+- Second milestone added: `GNSS Sky`, the GNSS Satellite Sky View.
+  - Uses the same shared Cap LoRa-1262 ATGM336H GNSS UART parser.
+  - Parses GSV satellite-in-view NMEA sentences for constellation/PRN, elevation, azimuth, and SNR.
+  - Draws a sky plot with horizon/elevation rings, cardinal direction labels, and SNR-colored satellite dots.
+  - Shows plotted satellites, reported satellites-in-view, GSV sentence count/age, fix status, HDOP, UTC, and strongest SNR satellite.
+  - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
+  - No transmit path is enabled.
+  - Hardware test pending.
+  - Guard: `tools/check_lora_gnss_sky_view.py`.
 - Feature ideas to implement:
-  - GNSS Dashboard: fix/no-fix state, satellites, HDOP, latitude/longitude, speed, altitude, and UTC clock.
+  - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26.
+  - GNSS Satellite Sky View: implemented as `GNSS Sky`; hardware test pending.
   - Waypoint / Return Home: mark a saved point, then show distance and bearing back to it.
   - Breadcrumb Logger: save GPX/CSV track logs to microSD, with optional ENV III readings later.
   - LoRa Packet Monitor: RX-only packet viewer for matching LoRa settings, including packet count, payload preview, RSSI, SNR, frequency, spreading factor, and bandwidth.
@@ -257,12 +277,34 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - MQTT LoRa Bridge: when Wi-Fi is connected, forward received LoRa packets into the Raspberry Pi MQTT system.
   - Signal Map: log GPS position plus LoRa RSSI/SNR from a known beacon for coverage mapping.
   - Treasure Hunt Mode: store waypoints on microSD and navigate to them with distance/bearing hints.
+  - Satellite Pass Tracker: later advanced feature for ISS/NOAA/other selected satellites using downloaded CelesTrak orbit data cached on microSD and SGP4-style pass prediction.
 - Recommended implementation order:
-  - GNSS Dashboard
+  - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26
+  - GNSS Satellite Sky View: implemented as `GNSS Sky`; hardware test pending
   - Waypoint / Return Home
   - Breadcrumb Logger
   - LoRa Packet Monitor
   - Remaining transmit-capable features after explicit LoRa TX planning
+
+## Priority 12: SD Manager / Config Editor
+
+- Add an SD card management feature after the Cap LoRa-1262 feature expansion foundation is settled.
+- First milestone should be a safe SD Manager, not a full free-form editor:
+  - browse known folders such as `/config`, `/env`, and `/memos`
+  - view small text files
+  - edit key/value config files such as `/config/wifi.txt` and `/config/pi.txt`
+  - create, delete, and rename files only with confirmation
+  - treat `.wav`, large `.csv`, and unknown binary files as view/delete only
+- Prefer line-based or key/value editing because the Cardputer screen is small.
+- Use temp-file saves followed by rename so power loss is less likely to corrupt config files.
+- Always flush and close files after writes.
+- Block editing while Voice Memos is recording or Environment logging is active.
+- Avoid SD access while LoRa diagnostics or future LoRa features are actively using the shared EXT SPI bus.
+- Guard requirements:
+  - no accidental writes outside explicitly selected SD paths
+  - no deletion without confirmation
+  - Wi-Fi and Pi config formats remain compatible with existing readers
+  - PlatformIO build must pass
 
 ## Done / Historical Milestones
 
@@ -303,6 +345,9 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User confirmed Cap LoRa-1262 diagnostics are working on Cardputer hardware on 2026-08-25.
 - Added TinyGPSPlus GNSS parsing to `LoRa Diag` for fix status, satellites, HDOP, latitude, longitude, UTC time, and checksum counters.
 - User confirmed Cap LoRa-1262 GNSS parsing is working on Cardputer hardware on 2026-08-26.
+- Added explicit shared SPI handoff helpers so SD-backed features can recover the microSD bus after `LoRa Diag`.
+- Started Priority #11 with `GNSS Dash`, a separate no-transmit Cap LoRa-1262 GNSS dashboard that reuses the shared TinyGPSPlus parser and shows fix state, satellites, HDOP, coordinates, speed, altitude, UTC/date, NMEA, checksum, and byte counts.
+- Added `GNSS Sky`, a no-transmit GNSS Satellite Sky View that parses GSV elevation/azimuth/SNR data and plots visible satellites with stale-data expiry.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
 - User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.

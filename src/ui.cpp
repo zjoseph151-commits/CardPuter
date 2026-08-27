@@ -7,6 +7,13 @@ void setScreen(Screen screen) {
   if (currentScreen == Screen::LoraDiag && screen != Screen::LoraDiag) {
     stopLoraDiagnostics();
   }
+  if (currentScreen == Screen::GnssDashboard &&
+      screen != Screen::GnssDashboard) {
+    stopGnssDashboard();
+  }
+  if (currentScreen == Screen::GnssSkyView && screen != Screen::GnssSkyView) {
+    stopGnssSkyView();
+  }
 
   currentScreen = screen;
   clearOledStatusLine();
@@ -15,6 +22,8 @@ void setScreen(Screen screen) {
   lastOledRefreshMs = 0;
   lastEnvironmentRefreshMs = 0;
   lastLoraDiagRenderMs = 0;
+  lastGnssDashboardRenderMs = 0;
+  lastGnssSkyViewRenderMs = 0;
 
   switch (currentScreen) {
     case Screen::MainMenu:
@@ -87,6 +96,14 @@ void setScreen(Screen screen) {
     case Screen::OledTest:
       drawScreenFrame("OLED Test (PaHub ch1)");
       showOledTest();
+      break;
+    case Screen::GnssDashboard:
+      drawScreenFrame("GNSS Dashboard");
+      showGnssDashboard();
+      break;
+    case Screen::GnssSkyView:
+      drawScreenFrame("GNSS Sky View");
+      showGnssSkyView();
       break;
     case Screen::LoraDiag:
       drawScreenFrame("LoRa Diag (RX only)");

@@ -15,6 +15,8 @@ def test_scoober_menu_structure():
     assert '"Voice Memos"' in SOURCE
     assert '"Environment"' in SOURCE
     assert '"OLED Test"' in SOURCE
+    assert '"GNSS Dash"' in SOURCE
+    assert '"GNSS Sky"' in SOURCE
     assert '"LoRa Diag"' in SOURCE
     assert '"Level"' in SOURCE
 

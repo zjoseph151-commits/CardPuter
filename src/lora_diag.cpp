@@ -1,7 +1,6 @@
 #include "app.h"
 
 #include <RadioLib.h>
-#include <TinyGPSPlus.h>
 #include "utility/PI4IOE5V6408_Class.hpp"
 
 namespace {
@@ -9,11 +8,8 @@ namespace {
 m5::PI4IOE5V6408_Class loraIoExpander(LORA_IO_EXPANDER_ADDRESS, 400000,
                                        &m5::In_I2C);
 SX1262 loraRadio = new Module(LORA_NSS_PIN, LORA_IRQ_PIN, LORA_RST_PIN,
-                              LORA_BUSY_PIN);
-HardwareSerial loraGnssSerial(1);
-TinyGPSPlus loraGps;
+                               LORA_BUSY_PIN);
 volatile bool loraPacketReceived = false;
-String loraGnssLineBuffer;
 bool loraHasInstantRssi = false;
 float loraInstantRssi = 0.0f;
 
@@ -57,162 +53,20 @@ String loraSnrText() {
   return loraMetricText(loraLastSnr, loraPacketCount);
 }
 
-bool loraGnssHasFreshFix() {
-  return loraGnssLocationValid && loraGnssFixAgeMs <= LORA_GNSS_FIX_STALE_MS;
-}
-
-String loraGnssSatellitesText() {
-  if (!loraGnssSatellitesValid) {
-    return "--";
-  }
-
-  return String(loraGnssSatellites);
-}
-
-String loraGnssHdopText() {
-  if (!loraGnssHdopValid) {
-    return "--";
-  }
-
-  char text[10];
-  snprintf(text, sizeof(text), "%.1f", loraGnssHdop);
-  return text;
-}
-
-String loraGnssCoordinateText(const char* label, double value) {
-  if (!loraGnssLocationValid) {
-    return String(label) + ": waiting";
-  }
-
-  char text[24];
-  snprintf(text, sizeof(text), "%s:%+.6f", label, value);
-  return text;
-}
-
-String loraGnssTimeText() {
-  if (!loraGnssTimeValid) {
-    return loraLastNmeaLine.length() > 0
-               ? String("NMEA:") + clippedLoraText(loraLastNmeaLine, 18)
-               : loraGnssStatus;
-  }
-
-  char text[28];
-  snprintf(text, sizeof(text), "UTC:%02u:%02u:%02u Age:%lus", loraGnssHour,
-           loraGnssMinute, loraGnssSecond,
-           static_cast<unsigned long>(loraGnssFixAgeMs / 1000UL));
-  return text;
-}
-
-void updateLoraGnssParsedState() {
-  loraGnssCharsParsed = loraGps.charsProcessed();
-  loraGnssPassedChecksum = loraGps.passedChecksum();
-  loraGnssFailedChecksum = loraGps.failedChecksum();
-
-  loraGnssLocationValid = loraGps.location.isValid();
-  if (loraGnssLocationValid) {
-    loraGnssLatitude = loraGps.location.lat();
-    loraGnssLongitude = loraGps.location.lng();
-    loraGnssFixAgeMs = loraGps.location.age();
-  } else {
-    loraGnssFixAgeMs = 0;
-  }
-
-  loraGnssSatellitesValid = loraGps.satellites.isValid();
-  if (loraGnssSatellitesValid) {
-    loraGnssSatellites = loraGps.satellites.value();
-  }
-
-  loraGnssHdopValid = loraGps.hdop.isValid();
-  if (loraGnssHdopValid) {
-    loraGnssHdop = loraGps.hdop.hdop();
-  }
-
-  loraGnssTimeValid = loraGps.time.isValid();
-  if (loraGnssTimeValid) {
-    loraGnssHour = loraGps.time.hour();
-    loraGnssMinute = loraGps.time.minute();
-    loraGnssSecond = loraGps.time.second();
-  }
-
-  loraGnssDateValid = loraGps.date.isValid();
-  if (loraGnssDateValid) {
-    loraGnssYear = loraGps.date.year();
-    loraGnssMonth = loraGps.date.month();
-    loraGnssDay = loraGps.date.day();
-  }
-
-  if (loraGnssHasFreshFix()) {
-    loraGnssStatus = "GNSS fix";
-  } else if (loraGnssCharsParsed > 0) {
-    loraGnssStatus = "No fix yet";
-  } else {
-    loraGnssStatus = "Waiting NMEA";
-  }
-}
-
 void prepareSharedExtSpiForLora() {
-  pinMode(SD_SPI_CS_PIN, OUTPUT);
-  digitalWrite(SD_SPI_CS_PIN, HIGH);
-  pinMode(LORA_NSS_PIN, OUTPUT);
-  digitalWrite(LORA_NSS_PIN, HIGH);
+  if (sharedSpiOwner == SHARED_SPI_OWNER_LORA) {
+    deselectSharedSpiDevices();
+    return;
+  }
+
+  deselectSharedSpiDevices();
+  SPI.end();
+  delay(2);
+  deselectSharedSpiDevices();
   SPI.begin(LORA_SPI_SCK_PIN, LORA_SPI_MISO_PIN, LORA_SPI_MOSI_PIN,
             LORA_NSS_PIN);
-}
-
-void startLoraGnssSerial() {
-  if (loraGnssStarted) {
-    return;
-  }
-
-  loraGnssSerial.begin(LORA_GNSS_BAUD, SERIAL_8N1, LORA_GNSS_RX_PIN,
-                       LORA_GNSS_TX_PIN);
-  loraGnssStarted = true;
-  loraGnssStatus = "Listening 115200";
-  Serial.printf("LoRa diag: GNSS UART started RX=G%d TX=G%d baud=%lu.\n",
-                LORA_GNSS_RX_PIN, LORA_GNSS_TX_PIN,
-                static_cast<unsigned long>(LORA_GNSS_BAUD));
-}
-
-void serviceLoraGnssSerial() {
-  if (!loraGnssStarted) {
-    return;
-  }
-
-  bool parsedBytes = false;
-
-  while (loraGnssSerial.available() > 0) {
-    const char ch = static_cast<char>(loraGnssSerial.read());
-    loraGnssByteCount++;
-    loraGps.encode(ch);
-    parsedBytes = true;
-
-    if (ch == '\r') {
-      continue;
-    }
-
-    if (ch == '\n') {
-      loraGnssLineBuffer.trim();
-      if (loraGnssLineBuffer.length() > 0) {
-        loraLastNmeaLine = loraGnssLineBuffer;
-        loraGnssLineCount++;
-        loraGnssStatus = "NMEA received";
-      }
-      loraGnssLineBuffer = "";
-      continue;
-    }
-
-    if (loraGnssLineBuffer.length() < LORA_GNSS_MAX_LINE_CHARS) {
-      loraGnssLineBuffer += ch;
-    }
-  }
-
-  if (loraGnssByteCount == 0) {
-    loraGnssStatus = "Waiting NMEA";
-  }
-
-  if (parsedBytes) {
-    updateLoraGnssParsedState();
-  }
+  deselectSharedSpiDevices();
+  sharedSpiOwner = SHARED_SPI_OWNER_LORA;
 }
 
 void updateLoraRadioReceive() {
@@ -410,11 +264,7 @@ void resetLoraDiagnostics() {
   loraPacketReceived = false;
   loraStatus = "Not initialized.";
   loraRadioStatus = "Not initialized.";
-  loraGnssStatus = "Not started.";
   loraLastPacket = "";
-  loraLastNmeaLine = "";
-  loraGnssLineBuffer = "";
-  loraGps = TinyGPSPlus();
   loraRadioState = 0;
   loraLastRssi = 0.0f;
   loraLastSnr = 0.0f;
@@ -423,27 +273,7 @@ void resetLoraDiagnostics() {
   loraPacketCount = 0;
   loraCrcErrorCount = 0;
   loraReceiveErrorCount = 0;
-  loraGnssByteCount = 0;
-  loraGnssLineCount = 0;
-  loraGnssLocationValid = false;
-  loraGnssSatellitesValid = false;
-  loraGnssHdopValid = false;
-  loraGnssTimeValid = false;
-  loraGnssDateValid = false;
-  loraGnssLatitude = 0.0;
-  loraGnssLongitude = 0.0;
-  loraGnssHdop = 0.0f;
-  loraGnssCharsParsed = 0;
-  loraGnssPassedChecksum = 0;
-  loraGnssFailedChecksum = 0;
-  loraGnssFixAgeMs = 0;
-  loraGnssSatellites = 0;
-  loraGnssYear = 0;
-  loraGnssMonth = 0;
-  loraGnssDay = 0;
-  loraGnssHour = 0;
-  loraGnssMinute = 0;
-  loraGnssSecond = 0;
+  resetLoraGnssParser();
   lastLoraDiagServiceMs = 0;
   lastLoraDiagRenderMs = 0;
 }
@@ -453,10 +283,8 @@ void stopLoraDiagnostics() {
     loraRadio.sleep();
   }
 
-  if (loraGnssStarted) {
-    loraGnssSerial.end();
-  }
+  deselectSharedSpiDevices();
+  stopLoraGnssSerial();
 
   resetLoraDiagnostics();
-  loraGnssStarted = false;
 }

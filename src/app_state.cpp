@@ -10,6 +10,8 @@ const MenuItem MENU_ITEMS[] = {
     {"Voice Memos", Screen::VoiceMemos},
     {"Environment", Screen::Environment},
     {"OLED Test", Screen::OledTest},
+    {"GNSS Dash", Screen::GnssDashboard},
+    {"GNSS Sky", Screen::GnssSkyView},
     {"LoRa Diag", Screen::LoraDiag},
     {"Level", Screen::LevelTool},
 };
@@ -32,6 +34,11 @@ unsigned long lastEnvironmentRefreshMs = 0;
 unsigned long lastEnvironmentRetryMs = 0;
 unsigned long lastLoraDiagServiceMs = 0;
 unsigned long lastLoraDiagRenderMs = 0;
+unsigned long lastGnssDashboardServiceMs = 0;
+unsigned long lastGnssDashboardRenderMs = 0;
+unsigned long lastGnssSkyViewServiceMs = 0;
+unsigned long lastGnssSkyViewRenderMs = 0;
+unsigned long lastGnssSkyGsvMs = 0;
 M5Canvas contentCanvas(&M5Cardputer.Display);
 bool contentCanvasReady = false;
 BatteryTrend batteryTrend;
@@ -102,6 +109,10 @@ bool loraGnssSatellitesValid = false;
 bool loraGnssHdopValid = false;
 bool loraGnssTimeValid = false;
 bool loraGnssDateValid = false;
+bool loraGnssSpeedValid = false;
+bool loraGnssAltitudeValid = false;
+bool gnssDashboardInitialized = false;
+bool gnssSkyViewInitialized = false;
 bool envLogging = false;
 File voiceMemoFile;
 File envLogFile;
@@ -136,8 +147,10 @@ int lastVbusVoltageMv = -1;
 int lastBatteryCurrentMa = 0;
 int i2cHubActiveChannel = -1;
 int loraRadioState = 0;
+int sharedSpiOwner = SHARED_SPI_OWNER_NONE;
 uint8_t oledActiveAddress = 0;
 m5::Power_Class::is_charging_t lastChargingStatus = m5::Power_Class::charge_unknown;
+GnssSkySatellite gnssSkySatellites[GNSS_SKY_MAX_SATELLITES];
 float envTemperatureC = 0.0f;
 float envHumidityPercent = 0.0f;
 float envPressureHpa = 0.0f;
@@ -146,6 +159,8 @@ float loraLastSnr = 0.0f;
 double loraGnssLatitude = 0.0;
 double loraGnssLongitude = 0.0;
 float loraGnssHdop = 0.0f;
+float loraGnssSpeedKmph = 0.0f;
+float loraGnssAltitudeMeters = 0.0f;
 uint32_t loraPacketCount = 0;
 uint32_t loraCrcErrorCount = 0;
 uint32_t loraReceiveErrorCount = 0;
@@ -156,6 +171,9 @@ uint32_t loraGnssPassedChecksum = 0;
 uint32_t loraGnssFailedChecksum = 0;
 uint32_t loraGnssFixAgeMs = 0;
 uint32_t loraGnssSatellites = 0;
+uint32_t gnssSkySatelliteCount = 0;
+uint32_t gnssSkySatellitesInView = 0;
+uint32_t gnssSkyGsvSentenceCount = 0;
 uint16_t loraGnssYear = 0;
 uint8_t loraGnssMonth = 0;
 uint8_t loraGnssDay = 0;

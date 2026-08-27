@@ -27,7 +27,11 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
 - `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
-- `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 and TinyGPSPlus for ATGM336H GNSS parsing.
+- `src/lora_gnss.cpp`: shared M5Stack Cap LoRa-1262 ATGM336H GNSS UART and TinyGPSPlus parser.
+- `src/gnss_dashboard.cpp`: `GNSS Dash` Priority #11 screen showing parsed GNSS details without starting the LoRa radio.
+- `src/gnss_sky_view.cpp`: `GNSS Sky` Priority #11 screen drawing GSV satellite elevation/azimuth/SNR data.
+- `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus shared ATGM336H GNSS parsing.
+- `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
 - Firmware guard scripts use `tools/firmware_source.py` so checks scan all `.cpp` and `.h` files under `src`.
 
@@ -45,6 +49,8 @@ The active menu is defined in `MENU_ITEMS`:
 {"Voice Memos", Screen::VoiceMemos}
 {"Environment", Screen::Environment}
 {"OLED Test", Screen::OledTest}
+{"GNSS Dash", Screen::GnssDashboard}
+{"GNSS Sky", Screen::GnssSkyView}
 {"LoRa Diag", Screen::LoraDiag}
 {"Level", Screen::LevelTool}
 ```
@@ -76,6 +82,8 @@ Feature-specific keys:
 - Pi Monitor: OK retries MQTT connection, `C` publishes whitelisted `read_now`, `T` cycles command targets, `I` cycles fixed intervals, `S` publishes whitelisted `set_interval`, `R` clears the device list and reconnects, `D` disconnects MQTT
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
 - OLED Test: OK/Enter or `R` retries OLED detection
+- GNSS Dash: OK/Enter or `R` restarts the shared GNSS parser
+- GNSS Sky: OK/Enter or `R` restarts the shared GNSS parser
 - LoRa Diag: OK/Enter or `R` restarts Cap LoRa-1262 diagnostics
 
 Do not re-add the old footer text inside every feature. The user asked to remove it.
@@ -453,6 +461,7 @@ Priority #10: add M5Stack Cap LoRa-1262 for Cardputer Adv.
 - GNSS parser milestone uses the M5Stack TinyGPSPlus GitHub library, matching the official M5Stack Cap LoRa-1262 tutorial note.
 - The parser displays fix/no-fix, satellites, HDOP, latitude, longitude, UTC time, NMEA sentence count, and checksum failures.
 - User confirmed on hardware on 2026-08-26 that the GNSS parser is working.
+- The GNSS UART/TinyGPSPlus parser now lives in `src/lora_gnss.cpp` so Priority #11 screens can reuse it without starting the SX1262 radio.
 - `LORA_GNSS_FIX_STALE_MS = 5000` keeps an old location from looking current.
 - No transmit behavior is enabled.
 - Do not transmit until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately set.
@@ -474,8 +483,33 @@ Cap LoRa-1262 documented pin map:
 Shared conflict notes:
 
 - SX1262 LoRa and microSD share SPI signal pins `G40/G39/G14`; chip selects are separate (`G5 NSS` for LoRa, `G12 CS` for microSD).
-- `LoRa Diag` deselects microSD before SX1262 init and only services LoRa/GNSS while the LoRa diagnostics screen is active.
+- `LoRa Diag` deselects microSD before SX1262 init and only services the SX1262 radio while the LoRa diagnostics screen is active; the shared GNSS parser is also used by `GNSS Dash`.
+- SD-backed features call `prepareSharedSpiForSd()` so LoRa `NSS` is high and SPI is re-begun for microSD after LoRa has owned the bus.
+- A small `sharedSpiOwner` flag prevents unnecessary SPI resets while a feature is already using the SD path, but forces a clean handoff after LoRa.
 - Keep G8/G9 free for the internal Cardputer/cap I2C path; do not use them directly for OLED or ENV III.
+
+Priority #11: Cap LoRa-1262 feature expansion.
+
+- First milestone added: `GNSS Dash`.
+- `GNSS Dash` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus, or transmit.
+- Built-in LCD shows the GNSS Dashboard view: fix/no-fix, satellites, HDOP, latitude, longitude, speed, altitude, UTC/date, fix age, NMEA line count, checksum count, and byte count.
+- SSD1309 OLED dashboard has compact `GNSS Dash` lines for fix/line count, coordinates/status, HDOP/speed, UTC, and altitude.
+- OK/Enter or `R` restarts the parser; Backspace returns to the main menu and stops the GNSS serial object.
+- No transmit behavior is enabled.
+- User reported `GNSS Dash` is looking good on hardware on 2026-08-26.
+- Guard: `tools/check_lora_gnss_dashboard.py`.
+- Second milestone added: `GNSS Sky`, the GNSS Satellite Sky View.
+- `GNSS Sky` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus, or transmit.
+- `src/lora_gnss.cpp` now parses `$GxGSV` satellite-in-view NMEA sentences for constellation/PRN, elevation, azimuth, and SNR.
+- `GNSS Sky` draws horizon/elevation rings, cardinal direction labels, and SNR-colored satellite dots that move as GSV updates arrive.
+- The screen reports plotted satellites, GSV satellites-in-view, GSV sentence count/age, fix status, HDOP, UTC, and strongest SNR satellite.
+- Satellite records expire after `GNSS_SKY_STALE_MS = 15000` so stale sky positions do not look live.
+- SSD1309 OLED dashboard has compact `GNSS Sky` lines for active/in-view count, GSV age, fix/status, and UTC.
+- OK/Enter or `R` restarts the parser; Backspace returns to the main menu and stops the GNSS serial object.
+- No transmit behavior is enabled.
+- Guard: `tools/check_lora_gnss_sky_view.py`.
+- Hardware test pending.
+- Next recommended Priority #11 feature after hardware testing: Waypoint / Return Home.
 
 ## ESP-NOW And RC Notes
 
@@ -589,6 +623,9 @@ python tools/check_battery_trend.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
 python tools/check_level_tool.py
+python tools/check_lora_cap_diag.py
+python tools/check_lora_gnss_dashboard.py
+python tools/check_lora_gnss_sky_view.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py

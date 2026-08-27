@@ -227,6 +227,32 @@ void handleKeyboard() {
       resetLoraDiagnostics();
       showLoraDiag();
     }
+  } else if (currentScreen == Screen::GnssDashboard) {
+    bool reset = keys.enter;
+
+    for (char key : keys.word) {
+      if (key == 'r' || key == 'R') {
+        reset = true;
+      }
+    }
+
+    if (reset) {
+      stopGnssDashboard();
+      showGnssDashboard();
+    }
+  } else if (currentScreen == Screen::GnssSkyView) {
+    bool reset = keys.enter;
+
+    for (char key : keys.word) {
+      if (key == 'r' || key == 'R') {
+        reset = true;
+      }
+    }
+
+    if (reset) {
+      stopGnssSkyView();
+      showGnssSkyView();
+    }
   }
 }
 

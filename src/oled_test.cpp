@@ -32,6 +32,10 @@ String screenTitleForOled() {
       return "Environment";
     case Screen::OledTest:
       return "OLED Test";
+    case Screen::GnssDashboard:
+      return "GNSS Dash";
+    case Screen::GnssSkyView:
+      return "GNSS Sky";
     case Screen::LoraDiag:
       return "LoRa Diag";
     case Screen::LevelTool:
@@ -313,7 +317,39 @@ void buildLoraDiagOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
   lines[4] = loraGnssLocationValid
                  ? String(loraGnssLatitude, 5) + "," +
                        String(loraGnssLongitude, 5)
-                 : "RX only No TX";
+                  : "RX only No TX";
+}
+
+void buildGnssDashboardOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  lines[0] = "GNSS Dash";
+  lines[1] = loraGnssHasFreshFix()
+                 ? String("Fix Sat:") + String(loraGnssSatellites)
+                 : String("NoFix L:") + String(loraGnssLineCount);
+  lines[2] = loraGnssLocationValid
+                 ? String(loraGnssLatitude, 5) + "," +
+                       String(loraGnssLongitude, 5)
+                 : loraGnssStatus;
+  lines[3] = String("HD:") + loraGnssHdopText() +
+             String(" Sp:") + loraGnssSpeedText();
+  lines[4] = loraGnssUtcText() + String(" A:") + loraGnssAltitudeText();
+}
+
+void buildGnssSkyViewOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  refreshGnssSkySatellites();
+
+  lines[0] = "GNSS Sky";
+  lines[1] = String("Sky:") + String(gnssSkySatelliteCount) + "/" +
+             String(gnssSkySatellitesInView);
+  lines[2] = String("GSV:") + String(gnssSkyGsvSentenceCount) +
+             (lastGnssSkyGsvMs == 0
+                  ? String(" wait")
+                  : String(" ") +
+                        String((millis() - lastGnssSkyGsvMs) / 1000UL) +
+                        String("s"));
+  lines[3] = loraGnssHasFreshFix()
+                 ? String("Fix Sat:") + String(loraGnssSatellites)
+                 : loraGnssStatus;
+  lines[4] = loraGnssUtcText();
 }
 
 void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
@@ -346,6 +382,12 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
       break;
     case Screen::LoraDiag:
       buildLoraDiagOledLines(lines);
+      break;
+    case Screen::GnssDashboard:
+      buildGnssDashboardOledLines(lines);
+      break;
+    case Screen::GnssSkyView:
+      buildGnssSkyViewOledLines(lines);
       break;
     case Screen::LevelTool:
       lines[4] = oledLevelLine();

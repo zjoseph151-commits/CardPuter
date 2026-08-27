@@ -181,9 +181,10 @@ bool isValidEnvironmentPressureHpa(float pressureHpa) {
 }
 
 bool initEnvironmentLogSd() {
-  SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
+  prepareSharedSpiForSd();
 
   if (!SD.begin(SD_SPI_CS_PIN, SPI, SD_SPI_FREQUENCY)) {
+    sharedSpiOwner = SHARED_SPI_OWNER_NONE;
     envLogStatus = "SD init failed.";
     Serial.println("Environment log: SD init failed.");
     return false;

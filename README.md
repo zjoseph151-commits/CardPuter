@@ -29,6 +29,8 @@ python tools/check_environment_feature.py
 python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
 python tools/check_lora_cap_diag.py
+python tools/check_lora_gnss_dashboard.py
+python tools/check_lora_gnss_sky_view.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
@@ -62,8 +64,11 @@ Current state:
 - Has no active NRF24L01/RF Scan feature or RF24 dependency in the main Cardputer firmware.
 - Has an RX-only Cap LoRa-1262 diagnostics screen with graceful `LoRa not found` status and separate GNSS UART byte/line counters.
 - Has a GNSS parser for Cap LoRa-1262 using TinyGPSPlus.
+- Has a `GNSS Dash` Priority #11 screen that reuses the Cap LoRa-1262 GNSS parser and shows fix state, satellites, HDOP, latitude/longitude, speed, altitude, and UTC.
+- Has a `GNSS Sky` Priority #11 screen that parses GSV satellite-in-view data and draws a sky plot using elevation, azimuth, and SNR.
 - User confirmed Cap LoRa-1262 diagnostics are working on hardware on 2026-08-25.
 - User confirmed the Cap LoRa-1262 GNSS parser is working on hardware on 2026-08-26.
+- User reported the `GNSS Dash` Priority #11 screen is looking good on hardware on 2026-08-26.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - Has no active ESP-NOW code.
@@ -105,7 +110,7 @@ Optional hardware:
 - USB-C data cable for upload and serial monitor
 - SSD1309 OLED on PaHub channel 1 for the OLED Status Dashboard and OLED Test diagnostics screen
 - Planned Priority #9 hardware: DS3231 / AT24C32 I2C RTC module
-- M5Stack Cap LoRa-1262 for Cardputer Adv, diagnostics only
+- M5Stack Cap LoRa-1262 for Cardputer Adv, diagnostics plus GNSS dashboard
 
 Hardware intentionally not active right now:
 
@@ -129,6 +134,8 @@ Next planned hardware:
   - The old NRF24/RF Scan firmware path has been removed so LoRa/GNSS diagnostics can claim the EXT path cleanly.
   - First milestone is active as `LoRa Diag`: detect the PI4IOE5V6408 antenna-switch expander, initialize SX1262 with RadioLib in receive-only mode, and count GNSS UART bytes/NMEA lines.
   - GNSS parser milestone uses TinyGPSPlus to show fix status, satellites, HDOP, coordinates, UTC time, and checksum counters.
+  - Priority #11 has started with `GNSS Dash`, a separate GNSS dashboard that does not start the LoRa radio or transmit.
+  - `GNSS Sky` adds a no-transmit satellite sky plot from GSV elevation/azimuth/SNR data.
   - Do not transmit until antenna, region/frequency, and TX power are deliberately set.
 
 ## Software, Libraries, And Frameworks
@@ -194,13 +201,18 @@ Important build note:
 |   |-- app.h
 |   |-- app_state.cpp
 |   |-- environment_screen.cpp
+|   |-- gnss_dashboard.cpp
+|   |-- gnss_sky_view.cpp
 |   |-- i2c_hub.cpp
 |   |-- input.cpp
 |   |-- level_tool.cpp
+|   |-- lora_diag.cpp
+|   |-- lora_gnss.cpp
 |   |-- main.cpp
 |   |-- oled_test.cpp
 |   |-- pi_monitor.cpp
 |   |-- power_screen.cpp
+|   |-- shared_spi.cpp
 |   |-- ui.cpp
 |   |-- voice_memos.cpp
 |   |-- wifi_connect.cpp
@@ -215,7 +227,11 @@ Important build note:
 |   |-- check_battery_trend.py
 |   |-- check_display_refresh.py
 |   |-- check_environment_feature.py
+|   |-- check_external_display_revisit.py
 |   |-- check_level_tool.py
+|   |-- check_lora_cap_diag.py
+|   |-- check_lora_gnss_dashboard.py
+|   |-- check_lora_gnss_sky_view.py
 |   |-- check_menu_structure.py
 |   |-- check_nrf24_feature.py
 |   |-- check_oled_test.py
@@ -253,7 +269,11 @@ File responsibilities:
 - [src/i2c_hub.cpp](src/i2c_hub.cpp): optional M5Stack Unit PaHub v2.1 detection and channel selection for shared Grove I2C.
 - [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
 - [src/oled_test.cpp](src/oled_test.cpp): SSD1309 OLED Status Dashboard plus OLED Test diagnostics on PaHub channel 1.
-- [src/lora_diag.cpp](src/lora_diag.cpp): RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 and TinyGPSPlus for parsed GNSS status.
+- [src/lora_gnss.cpp](src/lora_gnss.cpp): shared Cap LoRa-1262 ATGM336H GNSS UART and TinyGPSPlus parser state.
+- [src/gnss_dashboard.cpp](src/gnss_dashboard.cpp): Priority #11 GNSS dashboard using the shared parser without starting the LoRa radio.
+- [src/gnss_sky_view.cpp](src/gnss_sky_view.cpp): Priority #11 GNSS Satellite Sky View using GSV elevation, azimuth, and SNR data from the shared parser.
+- [src/lora_diag.cpp](src/lora_diag.cpp): RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus the shared parsed GNSS status.
+- [src/shared_spi.cpp](src/shared_spi.cpp): external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - [src/level_tool.cpp](src/level_tool.cpp): BMI270 level/crosshair tool.
 - [platformio.ini](platformio.ini): board/framework/library configuration.
 - [nodes/xiao_nrf24_oled](nodes/xiao_nrf24_oled): archived separate PlatformIO project for the XIAO ESP32-C3 NRF24/OLED proof node.
@@ -278,8 +298,10 @@ Menu items:
 7. Voice Memos
 8. Environment
 9. OLED Test
-10. LoRa Diag
-11. Level
+10. GNSS Dash
+11. GNSS Sky
+12. LoRa Diag
+13. Level
 
 Navigation:
 
@@ -645,9 +667,49 @@ Shared-pin conflict notes:
 - LoRa SPI uses `G40/G39/G14`, the same SPI signal pins used by microSD.
 - LoRa `NSS` is `G5`; microSD `CS` remains `G12`.
 - `LoRa Diag` explicitly drives the microSD CS pin high before initializing the SX1262 so both SPI devices are not selected together.
-- The firmware only services LoRa/GNSS while the `LoRa Diag` screen is active.
+- SD-backed features explicitly drive LoRa `NSS` high and re-begin SPI for microSD after LoRa diagnostics have owned the bus.
+- The firmware only services the SX1262 LoRa radio while the `LoRa Diag` screen is active; the shared GNSS parser is also used by `GNSS Dash`.
 - Do not use G8/G9 directly for external OLED/ENV hardware; on this cap they are the internal I2C path required by the cap expander.
 - No transmit work should be added until the antenna is installed and the legal region/frequency, bandwidth/spreading plan, and TX power are intentionally chosen.
+
+### GNSS Dashboard
+
+Behavior:
+
+- Adds `GNSS Dash` as the first Priority #11 Cap LoRa-1262 feature-expansion screen.
+- Reuses the shared ATGM336H GNSS UART/TinyGPSPlus parser in `src/lora_gnss.cpp`.
+- Starts only the GNSS serial parser; it does not initialize SX1262, claim the shared SPI bus, or transmit.
+- Shows fix/no-fix state, satellites, HDOP, latitude, longitude, speed, altitude, UTC clock, date, fix age, NMEA line count, checksum counts, and byte count.
+- Adds compact `GNSS Dash` lines to the SSD1309 OLED Status Dashboard.
+- OK/Enter or R restarts the parser.
+- Backspace returns to the main menu and stops the GNSS serial object.
+- No transmit path is enabled in this milestone.
+- User reported this screen is looking good on Cardputer hardware on 2026-08-26.
+
+Guard:
+
+- `tools/check_lora_gnss_dashboard.py`
+
+### GNSS Satellite Sky View
+
+Behavior:
+
+- Adds `GNSS Sky` as the second Priority #11 Cap LoRa-1262 feature-expansion screen.
+- Reuses the shared ATGM336H GNSS UART/TinyGPSPlus parser in `src/lora_gnss.cpp`.
+- Parses `$GxGSV` satellite-in-view NMEA sentences for constellation/PRN, elevation, azimuth, and SNR.
+- Draws a circular sky plot with horizon/elevation rings, cardinal directions, and SNR-colored satellite dots.
+- Tracks GSV sentence count, reported satellites-in-view, active plotted satellites, last GSV age, and strongest SNR satellite.
+- Expires satellite positions after `GNSS_SKY_STALE_MS = 15000` so stale GSV data does not look live.
+- Adds compact `GNSS Sky` lines to the SSD1309 OLED Status Dashboard.
+- Starts only the GNSS serial parser; it does not initialize SX1262, claim the shared SPI bus, or transmit.
+- OK/Enter or R restarts the parser.
+- Backspace returns to the main menu and stops the GNSS serial object.
+- No transmit path is enabled in this milestone.
+- Hardware test pending.
+
+Guard:
+
+- `tools/check_lora_gnss_sky_view.py`
 
 LoRa constants:
 
@@ -815,6 +877,7 @@ Current active communication paths:
 - **SPI**
   - Used for microSD access.
   - Cap LoRa-1262 SX1262 diagnostics also use EXT SPI pins `G40/G39/G14` with `G5 NSS`; microSD remains on `G12 CS`.
+  - `prepareSharedSpiForSd()` and `deselectSharedSpiDevices()` coordinate handoff between LoRa and SD-backed features.
 - **LoRa / GNSS**
   - `LoRa Diag` is receive-only and uses RadioLib to initialize SX1262 and start `startReceive()`.
   - Missing cap/radio reports `LoRa not found` on screen and serial instead of blocking the firmware.
@@ -1005,10 +1068,11 @@ Guard script:
 
 Highest priority:
 
-1. Hardware-test parsed GNSS status outside or near a window with the Cap LoRa-1262 antenna installed.
-2. Confirm `LoRa Diag` moves from `NoFix` to `Fix`, shows satellites/HDOP, and displays latitude/longitude/UTC once the GNSS module has sky view.
-3. Keep OLED drawing centralized and keep OLED on PaHub channel 1.
-4. Keep ENV III on PaHub channel 0.
+1. Hardware-test `GNSS Sky` outside or near a window with the Cap LoRa-1262 antenna installed.
+2. Confirm `GNSS Sky` shows GSV sentence count, satellites-in-view, moving sky-plot dots, and strongest SNR satellite once the GNSS module has sky view.
+3. Retest `GNSS Dash` and `LoRa Diag` after the GSV parser addition to confirm dashboard/radio diagnostics still show live GNSS and RSSI status.
+4. Keep OLED drawing centralized and keep OLED on PaHub channel 1.
+5. Keep ENV III on PaHub channel 0.
 
 Good near-term improvements:
 
@@ -1019,7 +1083,7 @@ Good near-term improvements:
 
 Future bigger milestones:
 
-1. Priority #10 future LoRa/GNSS features after diagnostics are hardware-tested.
+1. Continue Priority #11 Cap LoRa-1262 features after `GNSS Sky` is hardware-tested.
 2. Broader Raspberry Pi command center integration.
 3. MQTT authentication after live Mosquitto configuration is confirmed.
 4. More hardware tools using IR, Grove, BLE, or other Cardputer expansion options.
@@ -1123,6 +1187,9 @@ python tools/check_display_refresh.py
 python tools/check_environment_feature.py
 python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
+python tools/check_lora_cap_diag.py
+python tools/check_lora_gnss_dashboard.py
+python tools/check_lora_gnss_sky_view.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py

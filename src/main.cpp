@@ -69,6 +69,14 @@ void loop() {
     serviceLoraDiagnostics();
   }
 
+  if (currentScreen == Screen::GnssDashboard) {
+    serviceGnssDashboard();
+  }
+
+  if (currentScreen == Screen::GnssSkyView) {
+    serviceGnssSkyView();
+  }
+
   serviceOledStatusDashboard();
 
   delay(10);
