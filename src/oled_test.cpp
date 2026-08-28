@@ -335,21 +335,34 @@ void buildGnssDashboardOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
 }
 
 void buildGnssSkyViewOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
-  refreshGnssSkySatellites();
+  const GnssSkySatellite* satellite = selectedGnssSkySatellite();
 
   lines[0] = "GNSS Sky";
-  lines[1] = String("Sky:") + String(gnssSkySatelliteCount) + "/" +
-             String(gnssSkySatellitesInView);
-  lines[2] = String("GSV:") + String(gnssSkyGsvSentenceCount) +
-             (lastGnssSkyGsvMs == 0
-                  ? String(" wait")
-                  : String(" ") +
-                        String((millis() - lastGnssSkyGsvMs) / 1000UL) +
-                        String("s"));
-  lines[3] = loraGnssHasFreshFix()
-                 ? String("Fix Sat:") + String(loraGnssSatellites)
-                 : loraGnssStatus;
-  lines[4] = loraGnssUtcText();
+  if (satellite == nullptr) {
+    lines[1] = "Sel: none";
+    lines[2] = String("Sky:") + String(gnssSkySatelliteCount) + "/" +
+               String(gnssSkySatellitesInView);
+    lines[3] = loraGnssHasFreshFix()
+                   ? String("Fix Sat:") + String(loraGnssSatellites)
+                   : loraGnssStatus;
+    lines[4] = String("GSV:") + String(gnssSkyGsvSentenceCount) +
+               (lastGnssSkyGsvMs == 0
+                    ? String(" wait")
+                    : String(" ") +
+                          String((millis() - lastGnssSkyGsvMs) / 1000UL) +
+                          String("s"));
+    return;
+  }
+
+  const String snr = gnssSkySatelliteSnrText(*satellite);
+  lines[1] = String("Sel: ") + gnssSkySatelliteLabel(*satellite) + " " +
+             gnssSkyConstellationName(satellite->constellation);
+  lines[2] = String("PRN:") + String(satellite->prn) + String(" SNR:") + snr +
+             (snr == "--" ? String("") : String("dB"));
+  lines[3] = String("El:") + String(satellite->elevationDeg) +
+             String(" Az:") + String(satellite->azimuthDeg);
+  lines[4] = gnssSkyCompassDirection(satellite->azimuthDeg) +
+             String(" age:") + gnssSkySatelliteAgeText(*satellite);
 }
 
 void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {

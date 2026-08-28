@@ -261,13 +261,18 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Parses GSV satellite-in-view NMEA sentences for constellation/PRN, elevation, azimuth, and SNR.
   - Draws a sky plot with horizon/elevation rings, cardinal direction labels, and SNR-colored satellite dots.
   - Shows plotted satellites, reported satellites-in-view, GSV sentence count/age, fix status, HDOP, UTC, and strongest SNR satellite.
+  - Arrow keys cycle the selected satellite through active plotted satellites and skip inactive/stale entries.
+  - Highlights the selected satellite dot on the built-in LCD while keeping the right-side panel focused on overall sky/fix summary.
+  - Uses the SSD1309 OLED for selected satellite details: label, constellation, PRN/satellite ID, SNR, elevation, azimuth, compass direction, and last-seen age.
+  - Resets or clamps the selected satellite state when the active satellite list changes and handles zero plotted satellites as `Sel: none`.
   - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
   - No transmit path is enabled.
-  - Hardware test pending.
+  - User reported the base `GNSS Sky` screen is working great on hardware on 2026-08-28.
+  - Selected-satellite hardware test pending.
   - Guard: `tools/check_lora_gnss_sky_view.py`.
 - Feature ideas to implement:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26.
-  - GNSS Satellite Sky View: implemented as `GNSS Sky`; hardware test pending.
+  - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected-satellite hardware test pending.
   - Waypoint / Return Home: mark a saved point, then show distance and bearing back to it.
   - Breadcrumb Logger: save GPX/CSV track logs to microSD, with optional ENV III readings later.
   - LoRa Packet Monitor: RX-only packet viewer for matching LoRa settings, including packet count, payload preview, RSSI, SNR, frequency, spreading factor, and bandwidth.
@@ -280,7 +285,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Satellite Pass Tracker: later advanced feature for ISS/NOAA/other selected satellites using downloaded CelesTrak orbit data cached on microSD and SGP4-style pass prediction.
 - Recommended implementation order:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26
-  - GNSS Satellite Sky View: implemented as `GNSS Sky`; hardware test pending
+  - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected-satellite hardware test pending
   - Waypoint / Return Home
   - Breadcrumb Logger
   - LoRa Packet Monitor
@@ -347,7 +352,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User confirmed Cap LoRa-1262 GNSS parsing is working on Cardputer hardware on 2026-08-26.
 - Added explicit shared SPI handoff helpers so SD-backed features can recover the microSD bus after `LoRa Diag`.
 - Started Priority #11 with `GNSS Dash`, a separate no-transmit Cap LoRa-1262 GNSS dashboard that reuses the shared TinyGPSPlus parser and shows fix state, satellites, HDOP, coordinates, speed, altitude, UTC/date, NMEA, checksum, and byte counts.
-- Added `GNSS Sky`, a no-transmit GNSS Satellite Sky View that parses GSV elevation/azimuth/SNR data and plots visible satellites with stale-data expiry.
+- Added `GNSS Sky`, a no-transmit GNSS Satellite Sky View that parses GSV elevation/azimuth/SNR data, plots visible satellites with stale-data expiry, highlights the selected satellite, and shows selected details on the OLED.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
 - User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.

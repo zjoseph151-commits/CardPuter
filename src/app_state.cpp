@@ -148,6 +148,7 @@ int lastBatteryCurrentMa = 0;
 int i2cHubActiveChannel = -1;
 int loraRadioState = 0;
 int sharedSpiOwner = SHARED_SPI_OWNER_NONE;
+int selectedGnssSkySatelliteIndex = -1;
 uint8_t oledActiveAddress = 0;
 m5::Power_Class::is_charging_t lastChargingStatus = m5::Power_Class::charge_unknown;
 GnssSkySatellite gnssSkySatellites[GNSS_SKY_MAX_SATELLITES];

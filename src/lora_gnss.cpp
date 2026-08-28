@@ -100,6 +100,16 @@ int findGnssSkySatelliteSlot(char constellation, uint16_t prn) {
   return firstFreeSlot;
 }
 
+int firstActiveGnssSkySatelliteIndex() {
+  for (int i = 0; i < GNSS_SKY_MAX_SATELLITES; ++i) {
+    if (gnssSkySatellites[i].active) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 void updateGnssSkySatellite(char constellation, int prn, int elevationDeg,
                             int azimuthDeg, int snrDb) {
   if (prn <= 0) {
@@ -396,6 +406,7 @@ void resetLoraGnssParser() {
   gnssSkySatelliteCount = 0;
   gnssSkySatellitesInView = 0;
   gnssSkyGsvSentenceCount = 0;
+  selectedGnssSkySatelliteIndex = -1;
   lastGnssSkyGsvMs = 0;
 
   for (int i = 0; i < GNSS_SKY_MAX_SATELLITES; ++i) {
@@ -414,6 +425,7 @@ void stopLoraGnssSerial() {
 void refreshGnssSkySatellites() {
   const unsigned long now = millis();
   uint32_t activeCount = 0;
+  bool selectedStillActive = false;
 
   for (int i = 0; i < GNSS_SKY_MAX_SATELLITES; ++i) {
     GnssSkySatellite& satellite = gnssSkySatellites[i];
@@ -426,8 +438,17 @@ void refreshGnssSkySatellites() {
       continue;
     }
 
+    if (i == selectedGnssSkySatelliteIndex) {
+      selectedStillActive = true;
+    }
     activeCount++;
   }
 
   gnssSkySatelliteCount = activeCount;
+
+  if (activeCount == 0) {
+    selectedGnssSkySatelliteIndex = -1;
+  } else if (!selectedStillActive) {
+    selectedGnssSkySatelliteIndex = firstActiveGnssSkySatelliteIndex();
+  }
 }

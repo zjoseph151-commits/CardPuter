@@ -65,10 +65,11 @@ Current state:
 - Has an RX-only Cap LoRa-1262 diagnostics screen with graceful `LoRa not found` status and separate GNSS UART byte/line counters.
 - Has a GNSS parser for Cap LoRa-1262 using TinyGPSPlus.
 - Has a `GNSS Dash` Priority #11 screen that reuses the Cap LoRa-1262 GNSS parser and shows fix state, satellites, HDOP, latitude/longitude, speed, altitude, and UTC.
-- Has a `GNSS Sky` Priority #11 screen that parses GSV satellite-in-view data and draws a sky plot using elevation, azimuth, and SNR.
+- Has a `GNSS Sky` Priority #11 screen that parses GSV satellite-in-view data, draws a sky plot using elevation, azimuth, and SNR, and lets the user inspect the selected satellite on the OLED.
 - User confirmed Cap LoRa-1262 diagnostics are working on hardware on 2026-08-25.
 - User confirmed the Cap LoRa-1262 GNSS parser is working on hardware on 2026-08-26.
 - User reported the `GNSS Dash` Priority #11 screen is looking good on hardware on 2026-08-26.
+- User reported the base `GNSS Sky` Priority #11 screen is working great on hardware on 2026-08-28.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - Has no active ESP-NOW code.
@@ -700,12 +701,15 @@ Behavior:
 - Draws a circular sky plot with horizon/elevation rings, cardinal directions, and SNR-colored satellite dots.
 - Tracks GSV sentence count, reported satellites-in-view, active plotted satellites, last GSV age, and strongest SNR satellite.
 - Expires satellite positions after `GNSS_SKY_STALE_MS = 15000` so stale GSV data does not look live.
-- Adds compact `GNSS Sky` lines to the SSD1309 OLED Status Dashboard.
+- Arrow keys cycle the selected satellite through active plotted satellites and skip inactive/stale entries.
+- The built-in LCD highlights the selected satellite dot while keeping the right-side panel focused on overall sky/fix summary.
+- The SSD1309 OLED shows selected satellite details: label, constellation, PRN, SNR, elevation, azimuth, compass direction, and last-seen age.
+- The selection resets or clamps when the active satellite list changes and shows `Sel: none` gracefully when zero satellites are plotted.
 - Starts only the GNSS serial parser; it does not initialize SX1262, claim the shared SPI bus, or transmit.
 - OK/Enter or R restarts the parser.
 - Backspace returns to the main menu and stops the GNSS serial object.
 - No transmit path is enabled in this milestone.
-- Hardware test pending.
+- Selected-satellite hardware test pending.
 
 Guard:
 
@@ -1068,9 +1072,9 @@ Guard script:
 
 Highest priority:
 
-1. Hardware-test `GNSS Sky` outside or near a window with the Cap LoRa-1262 antenna installed.
-2. Confirm `GNSS Sky` shows GSV sentence count, satellites-in-view, moving sky-plot dots, and strongest SNR satellite once the GNSS module has sky view.
-3. Retest `GNSS Dash` and `LoRa Diag` after the GSV parser addition to confirm dashboard/radio diagnostics still show live GNSS and RSSI status.
+1. Hardware-test the `GNSS Sky` selected satellite update outside or near a window with the Cap LoRa-1262 antenna installed.
+2. Confirm arrow keys cycle plotted satellites, the selected dot is highlighted on the built-in LCD, and the OLED shows label, constellation, PRN, SNR, elevation, azimuth, compass direction, and age.
+3. Retest `GNSS Dash` and `LoRa Diag` after the GNSS Sky selection addition to confirm dashboard/radio diagnostics still show live GNSS and RSSI status.
 4. Keep OLED drawing centralized and keep OLED on PaHub channel 1.
 5. Keep ENV III on PaHub channel 0.
 
@@ -1083,7 +1087,7 @@ Good near-term improvements:
 
 Future bigger milestones:
 
-1. Continue Priority #11 Cap LoRa-1262 features after `GNSS Sky` is hardware-tested.
+1. Continue Priority #11 Cap LoRa-1262 features with Waypoint / Return Home after the `GNSS Sky` selected-satellite update is hardware-tested.
 2. Broader Raspberry Pi command center integration.
 3. MQTT authentication after live Mosquitto configuration is confirmed.
 4. More hardware tools using IR, Grove, BLE, or other Cardputer expansion options.
@@ -1253,6 +1257,9 @@ After upload:
 - Environment uses `L to name and start logging`; OK/Enter starts logging and Backspace deletes characters while naming.
 - Environment writes `/env/env001.csv` or named files such as `/env/backyard001.csv` to microSD.
 - Environment ignores invalid pressure readings instead of logging impossible values.
+- GNSS Dash shows fix/no-fix, satellites, HDOP, coordinates, speed, altitude, UTC/date, NMEA lines, checksum counts, and byte count without LoRa transmit behavior.
+- GNSS Sky shows GSV count/age, satellites-in-view, plotted satellite dots, and strongest SNR satellite on the LCD summary panel.
+- GNSS Sky arrow keys cycle the selected satellite, skip stale entries, highlight the selected dot, and show selected label, constellation, PRN, SNR, elevation, azimuth, compass direction, and age on the OLED.
 - Level shows a moving dot and center crosshair using the Cardputer Adv IMU.
 
 ## Assumptions And Constraints

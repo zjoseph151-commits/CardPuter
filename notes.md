@@ -29,7 +29,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
 - `src/lora_gnss.cpp`: shared M5Stack Cap LoRa-1262 ATGM336H GNSS UART and TinyGPSPlus parser.
 - `src/gnss_dashboard.cpp`: `GNSS Dash` Priority #11 screen showing parsed GNSS details without starting the LoRa radio.
-- `src/gnss_sky_view.cpp`: `GNSS Sky` Priority #11 screen drawing GSV satellite elevation/azimuth/SNR data.
+- `src/gnss_sky_view.cpp`: `GNSS Sky` Priority #11 screen drawing GSV satellite elevation/azimuth/SNR data and selected satellite highlighting.
 - `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus shared ATGM336H GNSS parsing.
 - `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
@@ -83,7 +83,7 @@ Feature-specific keys:
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
 - OLED Test: OK/Enter or `R` retries OLED detection
 - GNSS Dash: OK/Enter or `R` restarts the shared GNSS parser
-- GNSS Sky: OK/Enter or `R` restarts the shared GNSS parser
+- GNSS Sky: arrow keys cycle the selected satellite through active plotted satellites; OK/Enter or `R` restarts the shared GNSS parser
 - LoRa Diag: OK/Enter or `R` restarts Cap LoRa-1262 diagnostics
 
 Do not re-add the old footer text inside every feature. The user asked to remove it.
@@ -504,12 +504,15 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - `GNSS Sky` draws horizon/elevation rings, cardinal direction labels, and SNR-colored satellite dots that move as GSV updates arrive.
 - The screen reports plotted satellites, GSV satellites-in-view, GSV sentence count/age, fix status, HDOP, UTC, and strongest SNR satellite.
 - Satellite records expire after `GNSS_SKY_STALE_MS = 15000` so stale sky positions do not look live.
-- SSD1309 OLED dashboard has compact `GNSS Sky` lines for active/in-view count, GSV age, fix/status, and UTC.
+- Arrow keys cycle the selected satellite through active plotted satellites, skip inactive/stale entries, and clamp/reset when the active list changes.
+- The built-in LCD highlights the selected satellite dot while the right-side panel stays focused on overall sky/fix summary.
+- SSD1309 OLED dashboard now shows selected satellite details: label, constellation, PRN/satellite ID, SNR, elevation, azimuth, compass direction, and last-seen age.
 - OK/Enter or `R` restarts the parser; Backspace returns to the main menu and stops the GNSS serial object.
 - No transmit behavior is enabled.
+- User reported the base `GNSS Sky` screen is working great on hardware on 2026-08-28.
 - Guard: `tools/check_lora_gnss_sky_view.py`.
-- Hardware test pending.
-- Next recommended Priority #11 feature after hardware testing: Waypoint / Return Home.
+- Selected-satellite hardware test pending.
+- Next recommended Priority #11 feature after selected-satellite hardware testing: Waypoint / Return Home.
 
 ## ESP-NOW And RC Notes
 

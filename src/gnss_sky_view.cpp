@@ -1,5 +1,105 @@
 #include "app.h"
 
+String gnssSkySatelliteLabel(const GnssSkySatellite& satellite) {
+  char label[8];
+  snprintf(label, sizeof(label), "%c%02u", satellite.constellation,
+           satellite.prn);
+  return label;
+}
+
+String gnssSkyConstellationName(char constellation) {
+  switch (constellation) {
+    case 'G':
+      return "GPS";
+    case 'R':
+      return "GLONASS";
+    case 'E':
+      return "Galileo";
+    case 'B':
+      return "BeiDou";
+    case 'Q':
+      return "QZSS";
+    case 'N':
+      return "Mixed GNSS";
+    default:
+      return "Unknown";
+  }
+}
+
+String gnssSkySatelliteSnrText(const GnssSkySatellite& satellite) {
+  if (satellite.snrDb < 0) {
+    return "--";
+  }
+
+  return String(satellite.snrDb);
+}
+
+String gnssSkySatelliteAgeText(const GnssSkySatellite& satellite) {
+  if (satellite.lastSeenMs == 0) {
+    return "--";
+  }
+
+  return String((millis() - satellite.lastSeenMs) / 1000UL) + "s";
+}
+
+String gnssSkyCompassDirection(uint16_t azimuthDeg) {
+  static const char* directions[] = {"N",   "NNE", "NE",  "ENE",
+                                     "E",   "ESE", "SE",  "SSE",
+                                     "S",   "SSW", "SW",  "WSW",
+                                     "W",   "WNW", "NW",  "NNW"};
+  const uint8_t sector =
+      static_cast<uint8_t>((((azimuthDeg % 360U) * 16U) + 180U) / 360U) %
+      16U;
+  return directions[sector];
+}
+
+void clampGnssSkySelection() {
+  refreshGnssSkySatellites();
+}
+
+void moveGnssSkySelection(int direction) {
+  refreshGnssSkySatellites();
+
+  if (direction == 0 || gnssSkySatelliteCount == 0) {
+    return;
+  }
+
+  const int step = direction < 0 ? -1 : 1;
+  int index = selectedGnssSkySatelliteIndex;
+  if (index < 0 || index >= GNSS_SKY_MAX_SATELLITES ||
+      !gnssSkySatellites[index].active) {
+    index = step > 0 ? -1 : GNSS_SKY_MAX_SATELLITES;
+  }
+
+  for (int visited = 0; visited < GNSS_SKY_MAX_SATELLITES; ++visited) {
+    index += step;
+    if (index < 0) {
+      index = GNSS_SKY_MAX_SATELLITES - 1;
+    } else if (index >= GNSS_SKY_MAX_SATELLITES) {
+      index = 0;
+    }
+
+    if (gnssSkySatellites[index].active) {
+      selectedGnssSkySatelliteIndex = index;
+      return;
+    }
+  }
+
+  selectedGnssSkySatelliteIndex = -1;
+}
+
+const GnssSkySatellite* selectedGnssSkySatellite() {
+  refreshGnssSkySatellites();
+
+  if (selectedGnssSkySatelliteIndex < 0 ||
+      selectedGnssSkySatelliteIndex >= GNSS_SKY_MAX_SATELLITES ||
+      !gnssSkySatellites[selectedGnssSkySatelliteIndex].active) {
+    return nullptr;
+  }
+
+  return &gnssSkySatellites[selectedGnssSkySatelliteIndex];
+}
+
 namespace {
 
 String gnssSkyFixText() {
@@ -16,21 +116,6 @@ String gnssSkyAgeText() {
   }
 
   return String((millis() - lastGnssSkyGsvMs) / 1000UL) + "s";
-}
-
-String gnssSkySatelliteLabel(const GnssSkySatellite& satellite) {
-  char label[8];
-  snprintf(label, sizeof(label), "%c%02u", satellite.constellation,
-           satellite.prn);
-  return label;
-}
-
-String gnssSkySatelliteSnrText(const GnssSkySatellite& satellite) {
-  if (satellite.snrDb < 0) {
-    return "--";
-  }
-
-  return String(satellite.snrDb);
 }
 
 uint16_t gnssSkySnrColor(const GnssSkySatellite& satellite) {
@@ -88,7 +173,7 @@ void drawGnssSkyGrid(int centerX, int centerY, int radius) {
 }
 
 void drawGnssSkySatellite(const GnssSkySatellite& satellite, int centerX,
-                          int centerY, int radius) {
+                          int centerY, int radius, bool selected) {
   const float elevation =
       constrain(static_cast<float>(satellite.elevationDeg), 0.0f, 90.0f);
   const float plotRadius = radius * ((90.0f - elevation) / 90.0f);
@@ -101,7 +186,11 @@ void drawGnssSkySatellite(const GnssSkySatellite& satellite, int centerX,
   const uint16_t color = gnssSkySnrColor(satellite);
 
   contentCanvas.fillCircle(satX, satY, 3, color);
-  contentCanvas.drawCircle(satX, satY, 4, WHITE);
+  contentCanvas.drawCircle(satX, satY, selected ? 5 : 4, WHITE);
+  if (selected) {
+    contentCanvas.drawCircle(satX, satY, 7, WHITE);
+    contentCanvas.drawCircle(satX, satY, 8, YELLOW);
+  }
 }
 
 void drawGnssSkyPlot() {
@@ -115,9 +204,17 @@ void drawGnssSkyPlot() {
   drawGnssSkyGrid(centerX, centerY, radius);
 
   for (int i = 0; i < GNSS_SKY_MAX_SATELLITES; ++i) {
-    if (gnssSkySatellites[i].active) {
-      drawGnssSkySatellite(gnssSkySatellites[i], centerX, centerY, radius);
+    if (gnssSkySatellites[i].active && i != selectedGnssSkySatelliteIndex) {
+      drawGnssSkySatellite(gnssSkySatellites[i], centerX, centerY, radius,
+                           false);
     }
+  }
+
+  if (selectedGnssSkySatelliteIndex >= 0 &&
+      selectedGnssSkySatelliteIndex < GNSS_SKY_MAX_SATELLITES &&
+      gnssSkySatellites[selectedGnssSkySatelliteIndex].active) {
+    drawGnssSkySatellite(gnssSkySatellites[selectedGnssSkySatelliteIndex],
+                         centerX, centerY, radius, true);
   }
 
   if (gnssSkySatelliteCount == 0) {
@@ -167,7 +264,7 @@ void drawGnssSkyReadout() {
 
   y += 14;
   contentCanvas.setCursor(x, y);
-  contentCanvas.print("R reset");
+  contentCanvas.print(loraGnssDateText());
 }
 
 }  // namespace

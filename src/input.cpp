@@ -242,9 +242,16 @@ void handleKeyboard() {
     }
   } else if (currentScreen == Screen::GnssSkyView) {
     bool reset = keys.enter;
+    bool selectionChanged = false;
 
     for (char key : keys.word) {
-      if (key == 'r' || key == 'R') {
+      if (key == ';' || key == ',') {
+        moveGnssSkySelection(-1);
+        selectionChanged = true;
+      } else if (key == '.' || key == '/') {
+        moveGnssSkySelection(1);
+        selectionChanged = true;
+      } else if (key == 'r' || key == 'R') {
         reset = true;
       }
     }
@@ -252,6 +259,9 @@ void handleKeyboard() {
     if (reset) {
       stopGnssSkyView();
       showGnssSkyView();
+    } else if (selectionChanged) {
+      renderGnssSkyView();
+      renderOledStatusDashboard();
     }
   }
 }
