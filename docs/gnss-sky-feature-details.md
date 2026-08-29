@@ -25,6 +25,28 @@ The sky plot represents the sky above the user:
 
 ## Important Terms
 
+Constellation means a satellite navigation system. GPS is the United States constellation, GLONASS is the Russian constellation, Galileo is the European constellation, BeiDou is the Chinese constellation, and QZSS is a Japanese regional constellation. A multi-GNSS receiver can listen to several constellations at once, which usually improves fix speed, fix stability, and sky coverage.
+
+Talker means the two-character source ID at the start of an NMEA sentence. In a sentence like `$GPGSV,...`, `GP` is the talker and `GSV` is the sentence type. Common talker IDs include:
+
+- `GP`: GPS
+- `GL`: GLONASS
+- `GA`: Galileo
+- `GB`: BeiDou
+- `GQ`: QZSS
+- `GN`: mixed GNSS
+
+`GNSS Sky` uses the talker to label satellites by constellation when it parses GSV satellite-in-view sentences. For example:
+
+- `G12`: GPS satellite PRN 12
+- `R05`: GLONASS satellite 5
+- `E24`: Galileo satellite 24
+- `B08`: BeiDou satellite 8
+- `Q03`: QZSS satellite 3
+- `N17`: mixed-GNSS reported satellite 17
+
+`GN` mixed-GNSS reports are useful because they show the receiver is combining multiple systems, but the exact constellation can be ambiguous without deeper PRN/range interpretation. A future improvement could map mixed IDs more precisely when needed.
+
 SNR means signal-to-noise ratio. It describes how clearly the GNSS receiver can hear a satellite compared to background noise. Higher SNR usually means a cleaner, stronger signal. If SNR is missing, the satellite can still be plotted from elevation and azimuth, but signal strength is unknown.
 
 Fix means the GNSS receiver has enough usable satellite timing data to estimate position. Satellites can appear in the sky view before a location fix is available. A 2D fix can estimate latitude and longitude; a 3D fix can also estimate altitude.

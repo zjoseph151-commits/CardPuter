@@ -17,10 +17,11 @@ Start here if this repository is opened in a fresh Codex chat.
 5. Priority #7 is using the M5Stack Unit PaHub v2.1 I2C expansion path. ENV III remains on PaHub channel 0, and the SSD1309 OLED remains on PaHub channel 1 as a small OLED Status Dashboard plus diagnostics screen.
 6. Do not revive ESP-NOW RC controller work. The user decided this device is not going to be the RC controller.
 7. NRF24L01 feature was removed from the active Cardputer firmware on 2026-08-25 so the EXT path is available for Cap LoRa-1262 planning.
-8. Priority #10 now has an RX-only `LoRa Diag` screen for the M5Stack Cap LoRa-1262. No transmit path is enabled.
-9. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks; it is historical only.
-10. Build with `python -m platformio run` if `pio` is not on PATH.
-11. Run all guard scripts before claiming work is complete:
+8. Priority #9 now has an `RTC` status screen for the DS3231 / AT24C32 module on PaHub channel 5. The missing RTC path is graceful, and the AT24C32 EEPROM is detected but unused.
+9. Priority #10 now has an RX-only `LoRa Diag` screen for the M5Stack Cap LoRa-1262. No transmit path is enabled.
+10. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks; it is historical only.
+11. Build with `python -m platformio run` if `pio` is not on PATH.
+12. Run all guard scripts before claiming work is complete:
 
 ```sh
 python tools/check_battery_trend.py
@@ -37,6 +38,8 @@ python tools/check_oled_test.py
 python tools/check_oled_status_dashboard.py
 python tools/check_power_status.py
 python tools/check_pi_command_center_plan.py
+python tools/check_return_home.py
+python tools/check_rtc_status.py
 python tools/check_saved_wifi.py
 python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py
@@ -61,15 +64,19 @@ Current state:
 - Uses the SSD1309 OLED as a small secondary status display.
 - Uses the Grove I2C port for the M5Stack ENV III Unit, either directly or through M5Stack Unit PaHub v2.1 channel 0.
 - Uses microSD for voice memo storage.
+- Has a Priority #9 `RTC` status screen for the DS3231 / AT24C32 module on PaHub channel 5, with graceful missing RTC handling.
 - Has no active NRF24L01/RF Scan feature or RF24 dependency in the main Cardputer firmware.
 - Has an RX-only Cap LoRa-1262 diagnostics screen with graceful `LoRa not found` status and separate GNSS UART byte/line counters.
 - Has a GNSS parser for Cap LoRa-1262 using TinyGPSPlus.
 - Has a `GNSS Dash` Priority #11 screen that reuses the Cap LoRa-1262 GNSS parser and shows fix state, satellites, HDOP, latitude/longitude, speed, altitude, and UTC.
 - Has a `GNSS Sky` Priority #11 screen that parses GSV satellite-in-view data, draws a sky plot using elevation, azimuth, and SNR, and lets the user inspect the selected satellite on the OLED.
+- Has a `Return Home` Priority #11 screen that saves one home waypoint and shows distance/bearing back to it from a fresh GNSS fix.
 - User confirmed Cap LoRa-1262 diagnostics are working on hardware on 2026-08-25.
 - User confirmed the Cap LoRa-1262 GNSS parser is working on hardware on 2026-08-26.
 - User reported the `GNSS Dash` Priority #11 screen is looking good on hardware on 2026-08-26.
 - User reported the base `GNSS Sky` Priority #11 screen is working great on hardware on 2026-08-28.
+- User confirmed the `GNSS Sky` selected-satellite update is working on hardware on 2026-08-28.
+- User confirmed the `Return Home` Priority #11 screen is working great on hardware on 2026-08-29; Priority #11 is parked for now.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - Has no active ESP-NOW code.
@@ -110,25 +117,25 @@ Optional hardware:
 - microSD card for Voice Memos
 - USB-C data cable for upload and serial monitor
 - SSD1309 OLED on PaHub channel 1 for the OLED Status Dashboard and OLED Test diagnostics screen
-- Planned Priority #9 hardware: DS3231 / AT24C32 I2C RTC module
-- M5Stack Cap LoRa-1262 for Cardputer Adv, diagnostics plus GNSS dashboard
+- DS3231 / AT24C32 I2C RTC module on PaHub channel 5 for the Priority #9 `RTC` status screen
+- M5Stack Cap LoRa-1262 for Cardputer Adv, diagnostics plus GNSS feature screens
 
 Hardware intentionally not active right now:
 
 - ESP-NOW RC controller hardware
 - Direct Raspberry Pi shell/admin control; Pi Monitor stays scoped to MQTT monitoring plus whitelisted JSON commands
 - NRF24L01 / RF Scan firmware feature; removed to avoid conflicts with the upcoming Cap LoRa-1262 EXT interface path
-- DS3231 / AT24C32 RTC module; planned for Priority #9
+- RTC NTP/build-time setting is active; timestamp consumers are not active yet, and the AT24C32 EEPROM unused boundary remains in place
 - Cap LoRa-1262 transmit features; RX diagnostics are active, but No transmit work happens until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately set
 - IR, BLE, audio beyond voice memos, and other expansion hardware
 
-Current external-display direction: keep the built-in LCD as the primary control UI, and use the SSD1309 OLED as a small glance/status display on the M5Stack Unit PaHub v2.1. ENV III remains on PaHub channel 0, SSD1309 OLED remains on PaHub channel 1, PaHub default address `0x70`. Priority #8 is to customize each feature's OLED status. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
+Current external-display direction: keep the built-in LCD as the primary control UI, and use the SSD1309 OLED as a small glance/status display on the M5Stack Unit PaHub v2.1. ENV III remains on PaHub channel 0, SSD1309 OLED remains on PaHub channel 1, and DS3231 / AT24C32 RTC remains on PaHub channel 5. PaHub default address is `0x70`. Priority #8 is to customize each feature's OLED status. Avoid using G8/G9 directly on the Cardputer Adv because those pins share the internal I2C bus with the keyboard.
 
 Next planned hardware:
 
 - Priority #9: DS3231 / AT24C32 I2C RTC module.
+  - First milestone is active as `RTC`: read DS3231 date/time/temperature on PaHub channel 5, probe AT24C32 at `0x57`, and keep missing RTC behavior graceful.
   - Likely future use: timestamps for logs, voice memo file names, OLED clock/status, and Pi Monitor events.
-  - Must use a documented safe I2C path, likely another PaHub channel after review.
 - Priority #10: M5Stack Cap LoRa-1262 for Cardputer Adv.
   - Hardware includes SX1262 LoRa and ATGM336H GNSS.
   - It connects through the Cardputer Adv EXT interface.
@@ -137,6 +144,7 @@ Next planned hardware:
   - GNSS parser milestone uses TinyGPSPlus to show fix status, satellites, HDOP, coordinates, UTC time, and checksum counters.
   - Priority #11 has started with `GNSS Dash`, a separate GNSS dashboard that does not start the LoRa radio or transmit.
   - `GNSS Sky` adds a no-transmit satellite sky plot from GSV elevation/azimuth/SNR data.
+  - `Return Home` adds a no-transmit saved home waypoint with GNSS distance and bearing.
   - Do not transmit until antenna, region/frequency, and TX power are deliberately set.
 
 ## Software, Libraries, And Frameworks
@@ -213,6 +221,8 @@ Important build note:
 |   |-- oled_test.cpp
 |   |-- pi_monitor.cpp
 |   |-- power_screen.cpp
+|   |-- return_home.cpp
+|   |-- rtc_status.cpp
 |   |-- shared_spi.cpp
 |   |-- ui.cpp
 |   |-- voice_memos.cpp
@@ -239,6 +249,8 @@ Important build note:
 |   |-- check_oled_status_dashboard.py
 |   |-- check_pi_command_center_plan.py
 |   |-- check_power_status.py
+|   |-- check_return_home.py
+|   |-- check_rtc_status.py
 |   |-- check_saved_wifi.py
 |   |-- check_wifi_credentials_strategy.py
 |   |-- check_voice_memos.py
@@ -270,9 +282,11 @@ File responsibilities:
 - [src/i2c_hub.cpp](src/i2c_hub.cpp): optional M5Stack Unit PaHub v2.1 detection and channel selection for shared Grove I2C.
 - [src/environment_screen.cpp](src/environment_screen.cpp): ENV III sensor readings and CSV logging.
 - [src/oled_test.cpp](src/oled_test.cpp): SSD1309 OLED Status Dashboard plus OLED Test diagnostics on PaHub channel 1.
+- [src/rtc_status.cpp](src/rtc_status.cpp): Priority #9 DS3231 / AT24C32 RTC status screen on PaHub channel 5.
 - [src/lora_gnss.cpp](src/lora_gnss.cpp): shared Cap LoRa-1262 ATGM336H GNSS UART and TinyGPSPlus parser state.
 - [src/gnss_dashboard.cpp](src/gnss_dashboard.cpp): Priority #11 GNSS dashboard using the shared parser without starting the LoRa radio.
 - [src/gnss_sky_view.cpp](src/gnss_sky_view.cpp): Priority #11 GNSS Satellite Sky View using GSV elevation, azimuth, and SNR data from the shared parser.
+- [src/return_home.cpp](src/return_home.cpp): Priority #11 Waypoint / Return Home screen using a saved home point, GNSS distance, and bearing without starting the LoRa radio.
 - [src/lora_diag.cpp](src/lora_diag.cpp): RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus the shared parsed GNSS status.
 - [src/shared_spi.cpp](src/shared_spi.cpp): external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - [src/level_tool.cpp](src/level_tool.cpp): BMI270 level/crosshair tool.
@@ -299,10 +313,12 @@ Menu items:
 7. Voice Memos
 8. Environment
 9. OLED Test
-10. GNSS Dash
-11. GNSS Sky
-12. LoRa Diag
-13. Level
+10. RTC
+11. GNSS Dash
+12. GNSS Sky
+13. Return Home
+14. LoRa Diag
+15. Level
 
 Navigation:
 
@@ -552,6 +568,7 @@ ENV constants:
 - PaHub address: `I2C_HUB_ADDRESS = 0x70`
 - ENV III PaHub channel: `I2C_HUB_ENV_CHANNEL = 0`
 - OLED PaHub channel: `I2C_HUB_OLED_CHANNEL = 1`
+- RTC PaHub channel: `I2C_HUB_RTC_CHANNEL = 5`
 - PaHub settle delay: `I2C_HUB_CHANNEL_SETTLE_US = 1000`
 - Pressure sanity range: `300.0` to `1100.0` hPa
 - Refresh: `ENV_REFRESH_INTERVAL_MS = 1000`
@@ -572,6 +589,7 @@ ENV wiring, PaHub path:
 - Leave the PaHub DIP switch at the default address `0x70` for the first test.
 - Plug ENV III into PaHub channel 0.
 - Plug the SSD1309 OLED into PaHub channel 1 for the OLED Status Dashboard and OLED Test diagnostics.
+- Plug the DS3231 / AT24C32 RTC module into PaHub channel 5.
 - Do not connect the OLED to G8/G9.
 
 ### OLED Status Dashboard And Test
@@ -609,6 +627,7 @@ Screen-specific examples:
 - Pi Monitor: MQTT status, selected target, command status, message/device counts.
 - Environment: temperature F, humidity, pressure value or `Press: invalid`.
 - Voice Memos: `REC mm:ss` while recording, active/selected memo, SD/status.
+- RTC: DS3231 online/missing, date, time, and AT24C32 presence.
 - Level: compact level/tilt context.
 
 OLED Test diagnostics:
@@ -627,6 +646,51 @@ OLED constants:
 - OLED retry interval: `OLED_RETRY_INTERVAL_MS = 3000`
 - OLED status lines: `OLED_STATUS_LINE_COUNT = 5`
 - OLED line length: `OLED_STATUS_MAX_CHARS = 21`
+
+### RTC Status
+
+Behavior:
+
+- Adds `RTC` as the first Priority #9 firmware milestone.
+- Uses the shared Grove I2C bus through the Unit PaHub v2.1.
+- Selects the DS3231 / AT24C32 module on PaHub channel 5 before every RTC probe/read.
+- Reads DS3231 date, time, oscillator-stopped status, and temperature with raw Arduino `Wire` calls.
+- Press `N` to set or correct the DS3231 from NTP local time when Wi-Fi is already connected through WiFi Connect.
+- Press `S` only as an offline fallback to set the DS3231 from firmware build date/time plus current Cardputer uptime.
+- Probes the AT24C32 EEPROM at `0x57`, but keeps the EEPROM unused until there is a clear reason to store RTC-specific data there.
+- Shows `RTC online`, `RTC set NTP`, `RTC needs set`, `NTP sync failed`, `Use WiFi Connect`, `RTC time invalid`, `DS3231 not found`, or `PaHub ch5 missing` without blocking the rest of the firmware.
+- Shows a read-attempt counter on the built-in LCD so OK/Enter or R retry actions are visible.
+- Missing RTC hardware is graceful: the menu keeps working, the screen shows status, and the feature retries periodically.
+- Adds compact `RTC` lines to the SSD1309 OLED Status Dashboard.
+- Does not initialize SX1262, claim shared SPI, start GNSS serial, or add any LoRa transmit behavior.
+- Does not call `WiFi.begin`; RTC uses the existing WiFi Connect flow and only syncs from NTP when Wi-Fi is already connected.
+- OK/Enter or R retries RTC detection/read.
+- Backspace returns to the main menu.
+
+RTC constants:
+
+- RTC PaHub channel: `I2C_HUB_RTC_CHANNEL = 5`
+- DS3231 address: `RTC_DS3231_ADDRESS = 0x68`
+- AT24C32 address: `RTC_AT24C32_ADDRESS = 0x57`
+- DS3231 control register: `RTC_DS3231_CONTROL_REGISTER = 0x0E`
+- Refresh: `RTC_REFRESH_INTERVAL_MS = 1000`
+- Retry: `RTC_RETRY_INTERVAL_MS = 3000`
+- NTP sync timeout: `RTC_NTP_SYNC_TIMEOUT_MS = 10000`
+- NTP poll interval: `RTC_NTP_POLL_MS = 250`
+- NTP timezone: `RTC_TIMEZONE_POSIX = "MST7MDT,M3.2.0,M11.1.0"`
+- NTP servers: `pool.ntp.org`, `time.nist.gov`
+
+RTC wiring:
+
+- Plug the Unit PaHub v2.1 input into the Cardputer Grove port.
+- Leave ENV III on PaHub channel 0.
+- Leave the SSD1309 OLED on PaHub channel 1.
+- Plug the DS3231 / AT24C32 RTC module into PaHub channel 5.
+- Leave the PaHub DIP switch at default address `0x70`.
+
+Guard:
+
+- `tools/check_rtc_status.py`
 
 ### Cap LoRa-1262 Diagnostics
 
@@ -709,11 +773,40 @@ Behavior:
 - OK/Enter or R restarts the parser.
 - Backspace returns to the main menu and stops the GNSS serial object.
 - No transmit path is enabled in this milestone.
-- Selected-satellite hardware test pending.
+- User confirmed the selected-satellite update is working on hardware on 2026-08-28.
 
 Guard:
 
 - `tools/check_lora_gnss_sky_view.py`
+
+### Waypoint / Return Home
+
+Behavior:
+
+- Adds `Return Home` as the next Priority #11 Cap LoRa-1262 feature-expansion screen.
+- Uses the shared ATGM336H GNSS UART/TinyGPSPlus parser and starts only the GNSS serial path.
+- Saves one home waypoint to Preferences/NVS under `scoober_home` when the user presses `S` with a fresh GNSS fix.
+- Clears the saved home waypoint with `D`.
+- Shows live distance and bearing from the current fresh GNSS fix back to the saved home point.
+- Converts the return bearing to a compass direction using the existing GNSS compass helper.
+- Shows an arrival status once the current position is within `RETURN_HOME_ARRIVAL_RADIUS_METERS = 10.0f` of the saved home point.
+- Uses the SSD1309 OLED for a compact Return Home glance view with saved-home status, distance, bearing, GNSS status, and controls.
+- Starts only the GNSS serial parser; it does not initialize SX1262, claim the shared SPI bus, or transmit.
+- OK/Enter or R restarts the parser without deleting the saved home point.
+- Backspace returns to the main menu and stops the GNSS serial object.
+- No transmit path is enabled in this milestone.
+- User confirmed `Return Home` is working great on hardware on 2026-08-29.
+
+Controls:
+
+- `S`: save/update the current fresh GNSS fix as home.
+- `D`: clear the saved home point.
+- OK/Enter or `R`: restart the shared GNSS parser.
+- Backspace: return to the main menu.
+
+Guard:
+
+- `tools/check_return_home.py`
 
 LoRa constants:
 
@@ -839,6 +932,7 @@ Known pins used by current firmware:
 | Unit PaHub v2.1 address | 0x70 | Default DIP-switch address |
 | ENV III via PaHub | Channel 0 | First Priority #7 hardware test |
 | SSD1309 OLED via PaHub | Channel 1 | OLED Status Dashboard and OLED Test diagnostics |
+| DS3231 / AT24C32 RTC via PaHub | Channel 5 | Priority #9 RTC status screen; DS3231 `0x68`, AT24C32 `0x57` |
 | Cap LoRa-1262 SX1262 SPI | G40/G39/G14, G5 NSS | Shared EXT SPI signal pins with microSD; separate chip select |
 | Cap LoRa-1262 SX1262 control | G4 IRQ, G3 RST, G6 BUSY | Used only by `LoRa Diag` |
 | Cap LoRa-1262 GNSS UART | G15 GPS-TX, G13 GPS-RX | Cardputer RX is G15; Cardputer TX is G13 |
@@ -876,6 +970,7 @@ Current active communication paths:
   - Grove external I2C is used by ENV III on G2/G1.
   - Optional Unit PaHub v2.1 support detects the mux at `0x70` and selects ENV III on channel 0.
   - OLED Status Dashboard and OLED Test select the SSD1309 OLED on PaHub channel 1 and probe `0x3C` / `0x3D`.
+  - RTC selects the DS3231 / AT24C32 module on PaHub channel 5 and probes `0x68` / `0x57`.
   - Internal I2C is used by Cardputer hardware through M5 libraries.
   - Cap LoRa-1262 uses internal I2C G8/G9 for the PI4IOE5V6408 antenna-switch expander at `0x43`.
 - **SPI**
@@ -1041,7 +1136,7 @@ Guard script:
 - Voice memos depend on the microSD card. If no card is present, the feature shows an error status.
 - Voice memo list is capped at 30 displayed WAV files even though names can go up to `memo999.wav`.
 - The UI is tuned for the 240x135 built-in screen; long SSIDs and file names are truncated.
-- No timezone/clock/date handling exists yet.
+- RTC time is displayed as the DS3231's stored local module time. NTP setting currently uses Mountain time; timezone configuration and timestamp consumers are not active yet.
 
 ## Things Already Tried That Did Not Work
 
@@ -1072,22 +1167,25 @@ Guard script:
 
 Highest priority:
 
-1. Hardware-test the `GNSS Sky` selected satellite update outside or near a window with the Cap LoRa-1262 antenna installed.
-2. Confirm arrow keys cycle plotted satellites, the selected dot is highlighted on the built-in LCD, and the OLED shows label, constellation, PRN, SNR, elevation, azimuth, compass direction, and age.
-3. Retest `GNSS Dash` and `LoRa Diag` after the GNSS Sky selection addition to confirm dashboard/radio diagnostics still show live GNSS and RSSI status.
-4. Keep OLED drawing centralized and keep OLED on PaHub channel 1.
-5. Keep ENV III on PaHub channel 0.
+1. Hardware-test `RTC` with the DS3231 / AT24C32 module connected to PaHub channel 5.
+2. Use WiFi Connect first, then open `RTC` and press `N` to set the DS3231 from NTP local time.
+3. Confirm `N` shows `Use WiFi Connect` instead of managing credentials if Wi-Fi is disconnected.
+4. Confirm the built-in LCD shows DS3231 status, date, time, temperature, AT24C32 presence, and an incrementing read counter when OK/Enter or R retries.
+5. Confirm the RTC keeps time after reboot without pressing `N` again.
+6. Confirm the missing RTC path is graceful by unplugging the RTC or moving it off PaHub channel 5, then using OK/Enter or R to retry.
+7. Keep OLED drawing centralized and keep OLED on PaHub channel 1.
+8. Keep ENV III on PaHub channel 0.
 
 Good near-term improvements:
 
-1. Plan Priority #9 RTC module integration after the OLED customization pass.
+1. Make the RTC timezone configurable, likely from SD config, if the device needs to travel outside Mountain time.
 2. Use RTC time for Environment logs, Voice Memo names, OLED clock/status, and Pi Monitor timestamps where it helps.
 3. Revisit `Resp:` only if future commands need explicit success/failure acknowledgments; `Last` / `Pay` are working for now.
 4. Add MQTT authentication after live Mosquitto configuration is confirmed.
 
 Future bigger milestones:
 
-1. Continue Priority #11 Cap LoRa-1262 features with Waypoint / Return Home after the `GNSS Sky` selected-satellite update is hardware-tested.
+1. Return to Priority #11 Cap LoRa-1262 features after the paused RTC work is ready to leave Priority #9.
 2. Broader Raspberry Pi command center integration.
 3. MQTT authentication after live Mosquitto configuration is confirmed.
 4. More hardware tools using IR, Grove, BLE, or other Cardputer expansion options.
@@ -1200,6 +1298,8 @@ python tools/check_oled_test.py
 python tools/check_oled_status_dashboard.py
 python tools/check_pi_command_center_plan.py
 python tools/check_power_status.py
+python tools/check_return_home.py
+python tools/check_rtc_status.py
 python tools/check_saved_wifi.py
 python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py
@@ -1210,7 +1310,7 @@ python tools/check_xiao_nrf24_node.py
 Search code quickly:
 
 ```sh
-rg "Environment|Voice Memos|Battery|WiFi|LoRa|NRF24" src tools README.md notes.md todo.md
+rg "Environment|Voice Memos|Battery|WiFi|RTC|LoRa|NRF24" src tools README.md notes.md todo.md
 ```
 
 ## Firmware Test Checklist
@@ -1257,9 +1357,14 @@ After upload:
 - Environment uses `L to name and start logging`; OK/Enter starts logging and Backspace deletes characters while naming.
 - Environment writes `/env/env001.csv` or named files such as `/env/backyard001.csv` to microSD.
 - Environment ignores invalid pressure readings instead of logging impossible values.
+- RTC shows DS3231 status, date, time, oscillator-stopped warning, temperature, AT24C32 presence, and read count when the module is on PaHub channel 5.
+- RTC sets/corrects the DS3231 from NTP local time with `N` after Wi-Fi is connected through WiFi Connect.
+- RTC keeps `S` as an offline build-time fallback and reports missing RTC hardware gracefully.
+- RTC retries detection/read with OK/Enter or `R`, and the read count increments so the retry is visible.
 - GNSS Dash shows fix/no-fix, satellites, HDOP, coordinates, speed, altitude, UTC/date, NMEA lines, checksum counts, and byte count without LoRa transmit behavior.
 - GNSS Sky shows GSV count/age, satellites-in-view, plotted satellite dots, and strongest SNR satellite on the LCD summary panel.
 - GNSS Sky arrow keys cycle the selected satellite, skip stale entries, highlight the selected dot, and show selected label, constellation, PRN, SNR, elevation, azimuth, compass direction, and age on the OLED.
+- Return Home saves/updates a fresh GNSS fix with `S`, shows distance and bearing back to the saved home point, and clears the saved home point with `D`.
 - Level shows a moving dot and center crosshair using the Cardputer Adv IMU.
 
 ## Assumptions And Constraints
@@ -1288,5 +1393,7 @@ After upload:
 - If the OLED Status Dashboard stays blank, open OLED Test to see whether the firmware reports `PaHub not found` or `OLED not found`.
 - If OLED Test says `PaHub not found`, confirm the PaHub input is connected to Cardputer Grove and the DIP switch is at `0x70`.
 - If OLED Test says `OLED not found`, confirm the OLED is on PaHub channel 1 and try OK/Enter or R.
+- If RTC says `PaHub ch5 missing`, confirm the PaHub input is connected, the DIP switch is at `0x70`, and the RTC module is on PaHub channel 5.
+- If RTC says `DS3231 not found`, confirm the module power/wiring and use OK/Enter or R to retry detection.
 - If Voice Memos shows SD errors, confirm the microSD card is inserted and formatted.
 - If needed, restore factory firmware with M5Burner.

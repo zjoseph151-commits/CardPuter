@@ -68,6 +68,15 @@ bool selectOledI2cPath() {
   return selectI2cHubChannel(I2C_HUB_OLED_CHANNEL);
 }
 
+bool selectRtcI2cPath() {
+  if (!i2cHubDetected) {
+    i2cHubStatus = "PaHub not found";
+    return false;
+  }
+
+  return selectI2cHubChannel(I2C_HUB_RTC_CHANNEL);
+}
+
 String environmentI2cPathLabel() {
   if (!i2cHubDetected) {
     return "Direct Grove";
@@ -78,6 +87,18 @@ String environmentI2cPathLabel() {
   }
 
   return "PaHub";
+}
+
+String rtcI2cPathLabel() {
+  if (!i2cHubDetected) {
+    return "PaHub not found";
+  }
+
+  if (i2cHubActiveChannel >= 0) {
+    return String("PaHub ch") + String(i2cHubActiveChannel);
+  }
+
+  return String("PaHub ch") + String(I2C_HUB_RTC_CHANNEL);
 }
 
 String oledI2cPathLabel() {

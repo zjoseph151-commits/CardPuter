@@ -15,8 +15,10 @@ def test_scoober_menu_structure():
     assert '"Voice Memos"' in SOURCE
     assert '"Environment"' in SOURCE
     assert '"OLED Test"' in SOURCE
+    assert '"RTC"' in SOURCE
     assert '"GNSS Dash"' in SOURCE
     assert '"GNSS Sky"' in SOURCE
+    assert '"Return Home"' in SOURCE
     assert '"LoRa Diag"' in SOURCE
     assert '"Level"' in SOURCE
 
@@ -55,6 +57,7 @@ def test_scoober_menu_structure():
     assert "selectedMenuIndex" in SOURCE
     assert "moveMenuSelection(" in SOURCE
     assert "activateSelectedMenuItem()" in SOURCE
+    assert "Screen::RtcStatus" in SOURCE
     assert "key == ';'" in SOURCE
     assert "key == '.'" in SOURCE
     assert "keys.enter" in SOURCE

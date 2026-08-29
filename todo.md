@@ -174,11 +174,25 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - support Pi Monitor timestamps when useful
 - First milestone should be a safe RTC foundation, not a broad rewrite:
   - review current PaHub/I2C implementation before coding
-  - choose and document a PaHub channel for RTC; do not use ENV channel 0 or OLED channel 1
+  - use the currently wired PaHub channel 5 for RTC; do not use ENV channel 0 or OLED channel 1
   - detect DS3231 gracefully and keep firmware working when missing
   - read and display current time on a simple diagnostics/status path
-  - add an optional time-set path later, likely from compile time, serial, Wi-Fi/NTP, or a config file
+  - improve the time-set path later with configurable timezone, GNSS UTC, or a config file if needed
   - keep AT24C32 EEPROM unused unless there is a clear reason
+- First milestone started:
+  - adds `RTC` menu screen
+  - selects PaHub channel 5 through `I2C_HUB_RTC_CHANNEL = 5`
+  - probes DS3231 at `RTC_DS3231_ADDRESS = 0x68`
+  - probes AT24C32 at `RTC_AT24C32_ADDRESS = 0x57`
+  - reads DS3231 date/time, oscillator-stopped flag, and temperature with raw `Wire`
+  - `N` sets/corrects the DS3231 from NTP local time when Wi-Fi is already connected through WiFi Connect
+  - RTC does not call `WiFi.begin`; it shows `Use WiFi Connect` if Wi-Fi is disconnected
+  - `S` remains an offline fallback that sets the DS3231 from firmware build date/time plus current Cardputer uptime
+  - NTP setting currently uses Mountain time through `RTC_TIMEZONE_POSIX = "MST7MDT,M3.2.0,M11.1.0"`
+  - OK/Enter or `R` retries detection/read, with a built-in LCD read counter so the retry is visible
+  - keeps AT24C32 EEPROM unused
+  - shows missing RTC states such as `PaHub ch5 missing` or `DS3231 not found` without blocking the menu
+  - adds compact RTC lines to the OLED Status Dashboard
 - Expected I2C notes to verify before coding:
   - DS3231 RTC commonly uses address `0x68`
   - AT24C32 EEPROM commonly uses address `0x57`
@@ -186,6 +200,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Guard requirements:
   - RTC must not replace ENV/OLED PaHub channel assignments
   - missing RTC must be graceful
+  - guard: `tools/check_rtc_status.py`
   - PlatformIO build must pass
 
 ## Priority 10: Add Cap LoRa 1262
@@ -268,12 +283,25 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
   - No transmit path is enabled.
   - User reported the base `GNSS Sky` screen is working great on hardware on 2026-08-28.
-  - Selected-satellite hardware test pending.
+  - User confirmed the selected-satellite update is working on hardware on 2026-08-28.
   - Guard: `tools/check_lora_gnss_sky_view.py`.
+- Third milestone added: `Return Home`, the first Waypoint / Return Home pass.
+  - Uses the same shared Cap LoRa-1262 ATGM336H GNSS UART parser.
+  - Saves or updates one saved home point from the current fresh GNSS fix with `S`.
+  - Persists the saved home point in Preferences/NVS namespace `scoober_home`.
+  - Clears the saved home point with `D`.
+  - Shows distance and bearing from the current fresh GNSS fix back to the saved home point.
+  - Shows a compass direction derived from bearing and an arrival status within `RETURN_HOME_ARRIVAL_RADIUS_METERS = 10.0f`.
+  - Adds compact Return Home lines to the OLED Status Dashboard for saved-home status, distance, bearing, GNSS status, and controls.
+  - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
+  - No transmit path is enabled.
+  - User confirmed `Return Home` is working great on hardware on 2026-08-29.
+  - Priority #11 is parked for now while Priority #9 RTC work proceeds.
+  - Guard: `tools/check_return_home.py`.
 - Feature ideas to implement:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26.
-  - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected-satellite hardware test pending.
-  - Waypoint / Return Home: mark a saved point, then show distance and bearing back to it.
+  - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected satellite confirmed on hardware on 2026-08-28.
+  - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29 and parked for now.
   - Breadcrumb Logger: save GPX/CSV track logs to microSD, with optional ENV III readings later.
   - LoRa Packet Monitor: RX-only packet viewer for matching LoRa settings, including packet count, payload preview, RSSI, SNR, frequency, spreading factor, and bandwidth.
   - LoRa Range Test: with a second LoRa node later, send pings/acks and log RSSI/SNR over distance.
@@ -285,8 +313,8 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Satellite Pass Tracker: later advanced feature for ISS/NOAA/other selected satellites using downloaded CelesTrak orbit data cached on microSD and SGP4-style pass prediction.
 - Recommended implementation order:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26
-  - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected-satellite hardware test pending
-  - Waypoint / Return Home
+  - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected satellite confirmed on hardware on 2026-08-28
+  - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29 and parked for now
   - Breadcrumb Logger
   - LoRa Packet Monitor
   - Remaining transmit-capable features after explicit LoRa TX planning
@@ -353,6 +381,9 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Added explicit shared SPI handoff helpers so SD-backed features can recover the microSD bus after `LoRa Diag`.
 - Started Priority #11 with `GNSS Dash`, a separate no-transmit Cap LoRa-1262 GNSS dashboard that reuses the shared TinyGPSPlus parser and shows fix state, satellites, HDOP, coordinates, speed, altitude, UTC/date, NMEA, checksum, and byte counts.
 - Added `GNSS Sky`, a no-transmit GNSS Satellite Sky View that parses GSV elevation/azimuth/SNR data, plots visible satellites with stale-data expiry, highlights the selected satellite, and shows selected details on the OLED.
+- Added `Return Home`, a no-transmit Waypoint / Return Home screen that stores one saved home point in NVS and shows GNSS distance/bearing back to it.
+- User confirmed `Return Home` is working great on hardware on 2026-08-29, and Priority #11 is parked for now.
+- Started Priority #9 with `RTC`, a DS3231 / AT24C32 status screen on PaHub channel 5 that reads time/temperature, detects EEPROM presence, sets/corrects from NTP local time with `N`, keeps build-time setting as an offline fallback, and keeps missing RTC behavior graceful while the EEPROM unused boundary remains in place.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
 - User confirmed WiFi Connect testing worked great on Cardputer hardware on 2026-07-23.

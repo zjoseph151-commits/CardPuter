@@ -32,8 +32,10 @@ required_source_tokens = [
     "buildPiMonitorOledLines",
     "buildEnvironmentOledLines",
     "buildVoiceMemoOledLines",
+    "buildRtcStatusOledLines",
     "buildWifiOledLines",
     "buildLoraDiagOledLines",
+    "buildReturnHomeOledLines",
     "oledBatteryLine()",
     "oledWifiLine()",
     "oledMqttLine()",
@@ -48,7 +50,12 @@ required_source_tokens = [
     "Cmd: ",
     "REC %02lu:%02lu",
     "Press: invalid",
+    "DS3231:",
+    "N NTP EE:",
     "RX only No TX",
+    "Return Home",
+    "Dist: ",
+    "Bear: ",
     "oledLevelLine()",
 ]
 

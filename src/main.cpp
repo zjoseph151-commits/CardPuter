@@ -69,12 +69,20 @@ void loop() {
     serviceLoraDiagnostics();
   }
 
+  if (currentScreen == Screen::RtcStatus) {
+    serviceRtcStatus();
+  }
+
   if (currentScreen == Screen::GnssDashboard) {
     serviceGnssDashboard();
   }
 
   if (currentScreen == Screen::GnssSkyView) {
     serviceGnssSkyView();
+  }
+
+  if (currentScreen == Screen::ReturnHome) {
+    serviceReturnHome();
   }
 
   serviceOledStatusDashboard();

@@ -10,8 +10,10 @@ const MenuItem MENU_ITEMS[] = {
     {"Voice Memos", Screen::VoiceMemos},
     {"Environment", Screen::Environment},
     {"OLED Test", Screen::OledTest},
+    {"RTC", Screen::RtcStatus},
     {"GNSS Dash", Screen::GnssDashboard},
     {"GNSS Sky", Screen::GnssSkyView},
+    {"Return Home", Screen::ReturnHome},
     {"LoRa Diag", Screen::LoraDiag},
     {"Level", Screen::LevelTool},
 };
@@ -29,6 +31,8 @@ unsigned long lastSystemRefreshMs = 0;
 unsigned long lastLevelRefreshMs = 0;
 unsigned long lastOledRefreshMs = 0;
 unsigned long lastOledInitAttemptMs = 0;
+unsigned long lastRtcRefreshMs = 0;
+unsigned long lastRtcRetryMs = 0;
 unsigned long lastBatterySampleMs = 0;
 unsigned long lastEnvironmentRefreshMs = 0;
 unsigned long lastEnvironmentRetryMs = 0;
@@ -39,6 +43,8 @@ unsigned long lastGnssDashboardRenderMs = 0;
 unsigned long lastGnssSkyViewServiceMs = 0;
 unsigned long lastGnssSkyViewRenderMs = 0;
 unsigned long lastGnssSkyGsvMs = 0;
+unsigned long lastReturnHomeServiceMs = 0;
+unsigned long lastReturnHomeRenderMs = 0;
 M5Canvas contentCanvas(&M5Cardputer.Display);
 bool contentCanvasReady = false;
 BatteryTrend batteryTrend;
@@ -98,6 +104,12 @@ bool envPressureInvalid = false;
 bool i2cHubDetected = false;
 bool oledInitialized = false;
 bool oledOnline = false;
+bool rtcInitialized = false;
+bool rtcOnline = false;
+bool rtcEepromDetected = false;
+bool rtcTimeValid = false;
+bool rtcOscillatorStopped = false;
+bool rtcTemperatureValid = false;
 bool loraDiagInitialized = false;
 bool loraIoExpanderDetected = false;
 bool loraRfSwitchEnabled = false;
@@ -113,6 +125,9 @@ bool loraGnssSpeedValid = false;
 bool loraGnssAltitudeValid = false;
 bool gnssDashboardInitialized = false;
 bool gnssSkyViewInitialized = false;
+bool returnHomeInitialized = false;
+bool returnHomeWaypointValid = false;
+bool returnHomeNavigationValid = false;
 bool envLogging = false;
 File voiceMemoFile;
 File envLogFile;
@@ -126,9 +141,11 @@ String envStatus = "Not initialized.";
 String i2cHubStatus = "Direct Grove";
 String oledStatus = "Not initialized.";
 String oledStatusLine;
+String rtcStatus = "Not initialized.";
 String loraStatus = "Not initialized.";
 String loraRadioStatus = "Not initialized.";
 String loraGnssStatus = "Not started.";
+String returnHomeStatus = "Not started.";
 String loraLastPacket;
 String loraLastNmeaLine;
 String envLogStatus;
@@ -150,18 +167,29 @@ int loraRadioState = 0;
 int sharedSpiOwner = SHARED_SPI_OWNER_NONE;
 int selectedGnssSkySatelliteIndex = -1;
 uint8_t oledActiveAddress = 0;
+uint8_t rtcMonth = 0;
+uint8_t rtcDay = 0;
+uint8_t rtcHour = 0;
+uint8_t rtcMinute = 0;
+uint8_t rtcSecond = 0;
+uint8_t rtcDayOfWeek = 0;
 m5::Power_Class::is_charging_t lastChargingStatus = m5::Power_Class::charge_unknown;
 GnssSkySatellite gnssSkySatellites[GNSS_SKY_MAX_SATELLITES];
 float envTemperatureC = 0.0f;
 float envHumidityPercent = 0.0f;
 float envPressureHpa = 0.0f;
+float rtcTemperatureC = 0.0f;
 float loraLastRssi = 0.0f;
 float loraLastSnr = 0.0f;
 double loraGnssLatitude = 0.0;
 double loraGnssLongitude = 0.0;
+double returnHomeLatitude = 0.0;
+double returnHomeLongitude = 0.0;
 float loraGnssHdop = 0.0f;
 float loraGnssSpeedKmph = 0.0f;
 float loraGnssAltitudeMeters = 0.0f;
+float returnHomeDistanceMeters = 0.0f;
+float returnHomeBearingDeg = 0.0f;
 uint32_t loraPacketCount = 0;
 uint32_t loraCrcErrorCount = 0;
 uint32_t loraReceiveErrorCount = 0;
@@ -172,10 +200,12 @@ uint32_t loraGnssPassedChecksum = 0;
 uint32_t loraGnssFailedChecksum = 0;
 uint32_t loraGnssFixAgeMs = 0;
 uint32_t loraGnssSatellites = 0;
+uint32_t rtcReadAttemptCount = 0;
 uint32_t gnssSkySatelliteCount = 0;
 uint32_t gnssSkySatellitesInView = 0;
 uint32_t gnssSkyGsvSentenceCount = 0;
 uint16_t loraGnssYear = 0;
+uint16_t rtcYear = 0;
 uint8_t loraGnssMonth = 0;
 uint8_t loraGnssDay = 0;
 uint8_t loraGnssHour = 0;

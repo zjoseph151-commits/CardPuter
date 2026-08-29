@@ -27,9 +27,11 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
 - `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
+- `src/rtc_status.cpp`: Priority #9 DS3231 / AT24C32 RTC status screen on PaHub channel 5.
 - `src/lora_gnss.cpp`: shared M5Stack Cap LoRa-1262 ATGM336H GNSS UART and TinyGPSPlus parser.
 - `src/gnss_dashboard.cpp`: `GNSS Dash` Priority #11 screen showing parsed GNSS details without starting the LoRa radio.
 - `src/gnss_sky_view.cpp`: `GNSS Sky` Priority #11 screen drawing GSV satellite elevation/azimuth/SNR data and selected satellite highlighting.
+- `src/return_home.cpp`: `Return Home` Priority #11 screen saving one home waypoint and showing GNSS distance/bearing back to it without starting the LoRa radio.
 - `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus shared ATGM336H GNSS parsing.
 - `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
@@ -49,8 +51,10 @@ The active menu is defined in `MENU_ITEMS`:
 {"Voice Memos", Screen::VoiceMemos}
 {"Environment", Screen::Environment}
 {"OLED Test", Screen::OledTest}
+{"RTC", Screen::RtcStatus}
 {"GNSS Dash", Screen::GnssDashboard}
 {"GNSS Sky", Screen::GnssSkyView}
+{"Return Home", Screen::ReturnHome}
 {"LoRa Diag", Screen::LoraDiag}
 {"Level", Screen::LevelTool}
 ```
@@ -82,8 +86,10 @@ Feature-specific keys:
 - Pi Monitor: OK retries MQTT connection, `C` publishes whitelisted `read_now`, `T` cycles command targets, `I` cycles fixed intervals, `S` publishes whitelisted `set_interval`, `R` clears the device list and reconnects, `D` disconnects MQTT
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
 - OLED Test: OK/Enter or `R` retries OLED detection
+- RTC: `N` sets/corrects the DS3231 from NTP local time when Wi-Fi is already connected through WiFi Connect; `S` remains an offline build-time fallback; OK/Enter or `R` retries DS3231 / AT24C32 detection and read on PaHub channel 5
 - GNSS Dash: OK/Enter or `R` restarts the shared GNSS parser
 - GNSS Sky: arrow keys cycle the selected satellite through active plotted satellites; OK/Enter or `R` restarts the shared GNSS parser
+- Return Home: `S` saves/updates the current fresh GNSS fix as the saved home point, `D` clears the saved home point, OK/Enter or `R` restarts the shared GNSS parser
 - LoRa Diag: OK/Enter or `R` restarts Cap LoRa-1262 diagnostics
 
 Do not re-add the old footer text inside every feature. The user asked to remove it.
@@ -440,11 +446,25 @@ Priority #9: add DS3231 / AT24C32 I2C RTC module.
 
 - User provided Amazon module link: `https://www.amazon.com/AT24C32-Replace-Arduino-Batteries-Included/dp/B07Q7NZTQS`
 - Treat as a DS3231 RTC plus AT24C32 EEPROM module until hardware scan confirms details.
-- First milestone should be RTC detection and a simple time/status path.
+- First milestone is active as `RTC`.
+- RTC is wired to PaHub channel 5: `I2C_HUB_RTC_CHANNEL = 5`.
+- ENV III remains on PaHub channel 0 and SSD1309 OLED remains on PaHub channel 1.
+- The screen selects PaHub channel 5 before each RTC probe/read.
+- DS3231 is probed at `RTC_DS3231_ADDRESS = 0x68`.
+- AT24C32 is probed at `RTC_AT24C32_ADDRESS = 0x57`.
+- RTC date/time and temperature are read with raw Arduino `Wire` calls; no extra RTC library was added.
+- `N` sets/corrects the DS3231 from NTP local time when Wi-Fi is already connected through WiFi Connect.
+- RTC does not call `WiFi.begin`; it reuses the existing WiFi Connect flow and shows `Use WiFi Connect` if Wi-Fi is disconnected.
+- `S` remains an offline fallback that sets the DS3231 from firmware build date/time plus current Cardputer uptime.
+- NTP setting currently uses Mountain time through `RTC_TIMEZONE_POSIX = "MST7MDT,M3.2.0,M11.1.0"`.
+- OK/Enter or `R` retries detection/read, and the built-in LCD read counter makes that retry visible.
+- The screen shows `RTC online`, `RTC set NTP`, `RTC needs set`, `NTP sync failed`, `Use WiFi Connect`, `RTC time invalid`, `DS3231 not found`, or `PaHub ch5 missing`.
+- The missing RTC path must be graceful: the feature screen remains usable and retries with OK/Enter or `R`.
+- The AT24C32 EEPROM unused boundary is deliberate until there is a clear reason to store RTC-specific data.
+- OLED Status Dashboard has compact `RTC` lines for DS3231 online/missing, date, time, and AT24C32 presence.
+- Guard: `tools/check_rtc_status.py`.
 - Likely useful later for Environment log timestamps, Voice Memo file names, OLED clock/status, and Pi Monitor timestamps.
-- Choose a PaHub channel before coding. Do not use ENV channel 0 or OLED channel 1.
-- Missing RTC must be graceful.
-- Keep AT24C32 EEPROM unused unless there is a clear reason.
+- Next RTC work should make timezone configurable if needed, then add selective consumers such as Environment logs, Voice Memo names, OLED clock/status, or Pi Monitor timestamps.
 
 Priority #10: add M5Stack Cap LoRa-1262 for Cardputer Adv.
 
@@ -510,9 +530,20 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - OK/Enter or `R` restarts the parser; Backspace returns to the main menu and stops the GNSS serial object.
 - No transmit behavior is enabled.
 - User reported the base `GNSS Sky` screen is working great on hardware on 2026-08-28.
+- User confirmed the selected-satellite update is working on hardware on 2026-08-28.
 - Guard: `tools/check_lora_gnss_sky_view.py`.
-- Selected-satellite hardware test pending.
-- Next recommended Priority #11 feature after selected-satellite hardware testing: Waypoint / Return Home.
+- Third milestone added: `Return Home`, the first Waypoint / Return Home pass.
+- `Return Home` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus, or transmit.
+- `S` saves or updates one saved home point from the current fresh GNSS fix into Preferences/NVS namespace `scoober_home`.
+- `D` clears the saved home point from Preferences/NVS.
+- The screen shows distance and bearing from the current fresh GNSS fix back to the saved home point, plus a compass direction and arrival status inside `RETURN_HOME_ARRIVAL_RADIUS_METERS = 10.0f`.
+- SSD1309 OLED dashboard has compact `Return Home` lines for saved-home status, distance, bearing, GNSS status, and controls.
+- OK/Enter or `R` restarts the shared GNSS parser without deleting the saved home point.
+- No transmit behavior is enabled.
+- Guard: `tools/check_return_home.py`.
+- User confirmed `Return Home` is working great on hardware on 2026-08-29.
+- Priority #11 is parked for now while Priority #9 RTC work proceeds.
+- Next recommended Priority #11 feature when we return: Breadcrumb Logger or LoRa Packet Monitor, depending on whether location logging or RX radio work feels more useful next.
 
 ## ESP-NOW And RC Notes
 
@@ -625,6 +656,7 @@ Run all guards:
 python tools/check_battery_trend.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
+python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
 python tools/check_lora_cap_diag.py
 python tools/check_lora_gnss_dashboard.py
@@ -632,8 +664,11 @@ python tools/check_lora_gnss_sky_view.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
+python tools/check_oled_status_dashboard.py
 python tools/check_pi_command_center_plan.py
 python tools/check_power_status.py
+python tools/check_return_home.py
+python tools/check_rtc_status.py
 python tools/check_saved_wifi.py
 python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py

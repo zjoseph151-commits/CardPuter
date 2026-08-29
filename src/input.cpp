@@ -213,6 +213,37 @@ void handleKeyboard() {
       oledInitialized = false;
       renderOledTest();
     }
+  } else if (currentScreen == Screen::RtcStatus) {
+    bool retry = keys.enter;
+    bool setClock = false;
+    bool setFromNtp = false;
+
+    for (char key : keys.word) {
+      if (key == 's' || key == 'S') {
+        setClock = true;
+      } else if (key == 'n' || key == 'N') {
+        setFromNtp = true;
+      } else if (key == 'r' || key == 'R') {
+        retry = true;
+      }
+    }
+
+    if (setFromNtp) {
+      rtcStatus = "NTP sync...";
+      renderRtcStatus();
+      renderOledStatusDashboard();
+      setRtcFromNtp();
+      renderRtcStatus();
+      renderOledStatusDashboard();
+    } else if (setClock) {
+      setRtcToBuildTime();
+      renderRtcStatus();
+      renderOledStatusDashboard();
+    } else if (retry) {
+      resetRtcStatus();
+      showRtcStatus();
+      renderOledStatusDashboard();
+    }
   } else if (currentScreen == Screen::LoraDiag) {
     bool retry = keys.enter;
 
@@ -261,6 +292,29 @@ void handleKeyboard() {
       showGnssSkyView();
     } else if (selectionChanged) {
       renderGnssSkyView();
+      renderOledStatusDashboard();
+    }
+  } else if (currentScreen == Screen::ReturnHome) {
+    bool reset = keys.enter;
+    bool changed = false;
+
+    for (char key : keys.word) {
+      if (key == 's' || key == 'S') {
+        saveReturnHomeWaypoint();
+        changed = true;
+      } else if (key == 'd' || key == 'D') {
+        clearReturnHomeWaypoint();
+        changed = true;
+      } else if (key == 'r' || key == 'R') {
+        reset = true;
+      }
+    }
+
+    if (reset) {
+      stopReturnHome();
+      showReturnHome();
+    } else if (changed) {
+      renderReturnHome();
       renderOledStatusDashboard();
     }
   }

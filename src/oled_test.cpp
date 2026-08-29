@@ -32,10 +32,14 @@ String screenTitleForOled() {
       return "Environment";
     case Screen::OledTest:
       return "OLED Test";
+    case Screen::RtcStatus:
+      return "RTC";
     case Screen::GnssDashboard:
       return "GNSS Dash";
     case Screen::GnssSkyView:
       return "GNSS Sky";
+    case Screen::ReturnHome:
+      return "Return Home";
     case Screen::LoraDiag:
       return "LoRa Diag";
     case Screen::LevelTool:
@@ -268,6 +272,25 @@ void buildVoiceMemoOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
                                 : "OK play R rec";
 }
 
+void buildRtcStatusOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  lines[0] = "RTC";
+
+  if (!rtcOnline) {
+    lines[1] = "DS3231: missing";
+    lines[2] = rtcI2cPathLabel();
+    lines[3] = rtcStatus;
+    lines[4] = "OK/R retry";
+    return;
+  }
+
+  lines[1] = rtcOscillatorStopped ? "RTC: needs set" : "DS3231: online";
+  lines[2] = rtcDateText();
+  lines[3] = rtcTimeText();
+  lines[4] = rtcOscillatorStopped
+                 ? "N NTP S build"
+                 : (rtcEepromDetected ? "N NTP EE:seen" : "N NTP EE:--");
+}
+
 void buildWifiOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
   lines[0] = screenTitleForOled();
   lines[1] = oledWifiLine();
@@ -365,6 +388,33 @@ void buildGnssSkyViewOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
              String(" age:") + gnssSkySatelliteAgeText(*satellite);
 }
 
+void buildReturnHomeOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  lines[0] = "Return Home";
+
+  if (!returnHomeWaypointValid) {
+    lines[1] = "Home: not saved";
+    lines[2] = loraGnssHasFreshFix() ? "Fix: ready" : loraGnssStatus;
+    lines[3] = String("Sat:") + loraGnssSatellitesText() +
+               String(" HD:") + loraGnssHdopText();
+    lines[4] = "S save home";
+    return;
+  }
+
+  if (!returnHomeNavigationValid) {
+    lines[1] = "Home: saved";
+    lines[2] = returnHomeStatus;
+    lines[3] = String("Sat:") + loraGnssSatellitesText() +
+               String(" HD:") + loraGnssHdopText();
+    lines[4] = "S upd D clr";
+    return;
+  }
+
+  lines[1] = String("Dist: ") + returnHomeDistanceText();
+  lines[2] = String("Bear: ") + returnHomeBearingText();
+  lines[3] = returnHomeStatus;
+  lines[4] = "S upd D clr";
+}
+
 void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
   buildDefaultOledLines(lines);
 
@@ -393,6 +443,9 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
     case Screen::EnvironmentLogName:
       buildEnvironmentOledLines(lines);
       break;
+    case Screen::RtcStatus:
+      buildRtcStatusOledLines(lines);
+      break;
     case Screen::LoraDiag:
       buildLoraDiagOledLines(lines);
       break;
@@ -401,6 +454,9 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
       break;
     case Screen::GnssSkyView:
       buildGnssSkyViewOledLines(lines);
+      break;
+    case Screen::ReturnHome:
+      buildReturnHomeOledLines(lines);
       break;
     case Screen::LevelTool:
       lines[4] = oledLevelLine();
