@@ -158,11 +158,15 @@ Development environment:
 PlatformIO environment:
 
 - `default_envs = m5stack-stamps3`
-- `platform = espressif32`
+- `platform = https://github.com/pioarduino/platform-espressif32.git#54.03.21`
 - `board = m5stack-stamps3`
 - `framework = arduino`
 - `monitor_speed = 115200`
 - `upload_speed = 1500000`
+- Arduino-ESP32: `3.2.1`
+- ESP-IDF: `5.4.x`
+- Tool override: `platformio/tool-esptoolpy@1.40801.0` for Python 3.13 compatibility
+- Esptool compatibility script: `pre:tools/esptool_compat.py` and `post:tools/esptool_compat.py`
 
 Libraries in [platformio.ini](platformio.ini):
 
@@ -526,6 +530,11 @@ Voice memo notes:
 - Playback is currently a simple blocking playback loop. It calls `M5Cardputer.update()` while waiting for the speaker, but the UI is not a full asynchronous audio player.
 - Recording stops automatically at 30 seconds.
 - If zero bytes are recorded, the file is removed and no audio is saved.
+- M5Unified Mic.record queues capture asynchronously, so recording waits for each queued chunk to finish before writing the filled buffer to the WAV file.
+- The recording screen shows a live input peak value plus mic status on the LCD and OLED. If peak stays near the observed floor of `8` while speaking, the mic path is suspect; if peak moves, the saved WAV should contain audio samples.
+- Voice Memos probes right/left/stereo input channels before recording and keeps the loudest working channel for the session. The status line shows values like `Probe R ADV`, `Mic R pk 512`, or `Mic L quiet 8`.
+- Cardputer Adv uses the ES8311 codec path before recording: data `G46`, LRCK/WS `G43`, BCLK `G41`, ES8311 address `0x18`. Non-Adv Cardputer uses the built-in PDM path on data `G46` / WS `G43` with no BCLK.
+- The Cardputer Adv silent-mic symptom where every channel stays at `peak:8` matches a known ESP-IDF 5.5 I2S regression. The main PlatformIO environment is pinned to pioarduino `54.03.21`, which uses Arduino-ESP32 `3.2.1` and the ESP-IDF 5.4.x family.
 
 ### Environment
 
@@ -1246,6 +1255,7 @@ Serial output includes:
 - Wi-Fi scan results
 - Saved Wi-Fi events
 - Voice memo record/play/delete events
+- Voice memo mic board/channel/codec probe diagnostics
 - Environment sensor status and readings
 - Environment log start/stop events
 

@@ -129,8 +129,22 @@ constexpr int ENV_LOG_NAME_MAX_LENGTH = 16;
 constexpr const char* VOICE_MEMO_DIR = "/memos";
 constexpr int MAX_VOICE_MEMOS = 30;
 constexpr int VOICE_MEMO_VISIBLE_ROWS = 5;
+constexpr int VOICE_MEMO_ADV_MIC_DATA_PIN = 46;
+constexpr int VOICE_MEMO_ADV_MIC_WS_PIN = 43;
+constexpr int VOICE_MEMO_ADV_MIC_BCK_PIN = 41;
+constexpr uint8_t VOICE_MEMO_ES8311_ADDRESS = 0x18;
+constexpr uint32_t VOICE_MEMO_AUDIO_I2C_FREQUENCY = 100000;
 constexpr size_t VOICE_RECORD_SAMPLE_RATE = 16000;
 constexpr size_t VOICE_RECORD_CHUNK_SAMPLES = 240;
+constexpr uint32_t VOICE_RECORD_CHUNK_READY_MS =
+    static_cast<uint32_t>(((VOICE_RECORD_CHUNK_SAMPLES * 1000UL) +
+                           VOICE_RECORD_SAMPLE_RATE - 1) /
+                          VOICE_RECORD_SAMPLE_RATE) +
+    4;
+constexpr uint32_t VOICE_RECORD_CHUNK_TIMEOUT_MS =
+    VOICE_RECORD_CHUNK_READY_MS + 250;
+constexpr uint8_t VOICE_MEMO_MIC_PROBE_CHUNKS = 3;
+constexpr int16_t VOICE_RECORD_SILENT_PEAK_THRESHOLD = 12;
 constexpr uint32_t VOICE_RECORD_MAX_SECONDS = 30;
 constexpr uint32_t VOICE_RECORD_MAX_BYTES =
     VOICE_RECORD_SAMPLE_RATE * VOICE_RECORD_MAX_SECONDS * sizeof(int16_t);
@@ -311,6 +325,7 @@ extern bool voiceSdInitialized;
 extern bool voiceSdAvailable;
 extern bool voiceMemoRecording;
 extern bool voiceMemoPlaying;
+extern bool voiceMemoChunkPending;
 extern bool envSensorInitialized;
 extern bool envSht30Ready;
 extern bool envQmp6988Ready;
@@ -350,6 +365,7 @@ extern File envLogFile;
 extern String voiceMemoStatus;
 extern String activeVoiceMemoName;
 extern String activeVoiceMemoPath;
+extern String voiceMemoMicStatus;
 extern String pendingVoiceMemoDeleteName;
 extern String pendingVoiceMemoDeletePath;
 extern String voiceMemoDeleteResultMessage;
@@ -369,11 +385,14 @@ extern String envLogFileName;
 extern String envLogFilePath;
 extern String envLogNameInput;
 extern uint32_t voiceMemoRecordedBytes;
+extern uint32_t voiceMemoSilentChunkCount;
 extern uint32_t envLogSampleCount;
 extern uint32_t oledDrawCount;
 extern unsigned long voiceMemoRecordingStartedMs;
 extern unsigned long lastVoiceMemoRenderMs;
+extern unsigned long voiceMemoChunkStartedMs;
 extern int16_t voiceRecordBuffer[VOICE_RECORD_CHUNK_SAMPLES];
+extern int16_t voiceMemoLastPeak;
 extern int lastBatteryVoltageMv;
 extern int lastBatteryLevel;
 extern int lastVbusVoltageMv;

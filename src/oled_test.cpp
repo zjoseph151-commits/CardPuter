@@ -267,9 +267,14 @@ void buildVoiceMemoOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
   lines[0] = "Voice Memos";
   lines[1] = oledVoiceMemoLine();
   lines[2] = selectedVoiceMemoNameForOled();
-  lines[3] = voiceMemoStatus.length() > 0 ? voiceMemoStatus : oledBatteryLine();
-  lines[4] = voiceMemoRecording ? String(voiceMemoRecordedBytes / 1024UL) + " KB"
-                                : "OK play R rec";
+  lines[3] = voiceMemoRecording && voiceMemoMicStatus.length() > 0
+                 ? voiceMemoMicStatus
+                 : voiceMemoStatus.length() > 0 ? voiceMemoStatus
+                                                : oledBatteryLine();
+  lines[4] = voiceMemoRecording
+                 ? String(voiceMemoRecordedBytes / 1024UL) + "KB P:" +
+                       String(voiceMemoLastPeak)
+                 : "OK play R rec";
 }
 
 void buildRtcStatusOledLines(String lines[OLED_STATUS_LINE_COUNT]) {

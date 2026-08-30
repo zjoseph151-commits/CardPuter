@@ -250,7 +250,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - hardware confirmed on 2026-08-25: cap/RF/radio status, live RSSI, and GNSS NMEA output are working
   - hardware-test parsed GNSS fix outside or near a window and confirm satellites/HDOP/location/UTC populate
   - hardware confirmed on 2026-08-26: GNSS parser is working
-  - retest Voice Memos after `LoRa Diag`; user reported SD init failed before the shared SPI handoff fix
+  - Voice Memos after `LoRa Diag`: SD init was fixed by the shared SPI handoff; new recordings still need hardware retest after the mic channel probe and visible diagnostics were added
   - choose legal region/frequency, bandwidth/spreading plan, and TX power before any TX work
   - decide how parsed GNSS should be reused by other features, such as timestamps or location-aware logs
 - Guard requirements:
@@ -379,6 +379,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Added TinyGPSPlus GNSS parsing to `LoRa Diag` for fix status, satellites, HDOP, latitude, longitude, UTC time, and checksum counters.
 - User confirmed Cap LoRa-1262 GNSS parsing is working on Cardputer hardware on 2026-08-26.
 - Added explicit shared SPI handoff helpers so SD-backed features can recover the microSD bus after `LoRa Diag`.
+- Investigating Voice Memos silent new-recording regression after Cap LoRa work: SD init/write now work, but hardware testing still showed a fixed `peak:8` on right/left/stereo while ES8311 was detected. This matches the Cardputer Adv ESP-IDF 5.5 I2S silent-mic issue, so the main PlatformIO environment is pinned to pioarduino `54.03.21` / Arduino-ESP32 `3.2.1` / ESP-IDF `5.4.x` with `platformio/tool-esptoolpy@1.40801.0` plus the local esptool compatibility script; next step is hardware retest.
 - Started Priority #11 with `GNSS Dash`, a separate no-transmit Cap LoRa-1262 GNSS dashboard that reuses the shared TinyGPSPlus parser and shows fix state, satellites, HDOP, coordinates, speed, altitude, UTC/date, NMEA, checksum, and byte counts.
 - Added `GNSS Sky`, a no-transmit GNSS Satellite Sky View that parses GSV elevation/azimuth/SNR data, plots visible satellites with stale-data expiry, highlights the selected satellite, and shows selected details on the OLED.
 - Added `Return Home`, a no-transmit Waypoint / Return Home screen that stores one saved home point in NVS and shows GNSS distance/bearing back to it.

@@ -5,7 +5,9 @@ void setup() {
   delay(200);
 
   auto cfg = M5.config();
+  cfg.serial_baudrate = 115200;
   M5Cardputer.begin(cfg, true);
+  Serial.begin(115200);
   M5Cardputer.Display.setRotation(1);
   M5Cardputer.Display.setFont(&fonts::Font2);
   M5Cardputer.Display.setTextSize(1);

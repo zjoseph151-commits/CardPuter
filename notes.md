@@ -10,6 +10,9 @@ These notes preserve project context for future Codex sessions. They are intenti
 - Firmware entry point: `src/main.cpp`
 - Target board in PlatformIO: `m5stack-stamps3`
 - Framework: Arduino
+- Main PlatformIO platform: pioarduino `platform-espressif32` pinned to `54.03.21`
+- Main Arduino-ESP32 / ESP-IDF stack: Arduino-ESP32 `3.2.1`, ESP-IDF `5.4.x`
+- Main environment overrides `tool-esptoolpy` to `platformio/tool-esptoolpy@1.40801.0` because the older pinned platform's bundled esptool package is not compatible with the current Python 3.13/click runtime. `tools/esptool_compat.py` normalizes the pinned pioarduino platform's esptool command names, flash option flags, and reset mode values to the PlatformIO registry esptool CLI.
 - Device: M5Stack Cardputer Adv Version
 
 ## Source Layout
@@ -216,6 +219,7 @@ Storage:
 - Format: WAV, PCM, 16-bit, mono
 - Sample rate: 16000 Hz
 - Max recording time: 30 seconds
+- Record chunk size: 240 samples
 
 Pins:
 
@@ -227,6 +231,12 @@ Pins:
 Implementation notes:
 
 - Recording writes a placeholder WAV header first and patches it when recording stops.
+- M5Unified `Mic.record()` queues asynchronous capture into the provided buffer. Do not write a newly queued buffer to SD immediately; wait until the chunk is no longer recording and the capture window has elapsed, then write the filled buffer.
+- The Voice Memos recording screen shows `peak:` and a `Mic ...` status on the LCD/OLED so hardware tests can distinguish a silent mic/input path from an SD write problem.
+- Recording probes right/left/stereo input channels, chooses the loudest working channel, and labels quiet chunks when the peak stays at or below the observed floor threshold.
+- The Cardputer Adv mic path depends on the ES8311 codec at internal I2C address `0x18`. Voice Memos restores the Adv audio pins (`G46` data, `G43` WS/LRCK, `G41` BCLK), enables the ES8311 ADC path, and prints board/config/codec/probe details to Serial when recording starts.
+- Non-Adv Cardputer keeps the built-in PDM mic path on data `G46` / WS `G43` with no BCLK.
+- Hardware testing showed all right/left/stereo probes stuck at `peak:8` while ES8311 was visible and M5Unified reported the mic task running. This matches the known Cardputer Adv silent-mic behavior under the ESP-IDF 5.5 I2S stack, so the main PlatformIO environment is pinned to pioarduino `54.03.21` / ESP-IDF `5.4.x`.
 - If no audio bytes are recorded, the file is deleted.
 - Playback validates RIFF/WAVE basics and only supports 16-bit mono PCM.
 - Playback is simple/blocking.
