@@ -24,6 +24,9 @@ required_source_tokens = [
     '"OLED Test"',
     "OLED_I2C_ADDRESS_PRIMARY",
     "OLED_I2C_ADDRESS_SECONDARY",
+    "OLED_I2C_FAST_FREQUENCY",
+    "OLED_I2C_FALLBACK_FREQUENCY = 100000U",
+    "OLED_PROBE_ATTEMPTS = 3",
     "I2C_HUB_OLED_CHANNEL = 1",
     "U8G2_SSD1309_128X64_NONAME0_F_HW_I2C",
     "initOledDisplay()",
@@ -38,7 +41,15 @@ required_source_tokens = [
     "oledI2cPathLabel()",
     "oledOnline",
     "oledActiveAddress",
+    "oledActiveBusFrequency",
+    "oledScanSummary",
+    "configureExternalI2cForOled",
+    "restoreExternalI2cBusClock",
+    "oledProbeFailureSummary",
+    "tryOledProbeAtFrequency",
     "OLED proof-of-life",
+    "Bus:",
+    "Scan:",
     "OK/R retry",
 ]
 
@@ -50,6 +61,11 @@ forbidden_source_tokens = [
     "OLED_SCL_PIN",
     "SDA -> Cardputer G2",
     "SCL -> Cardputer G1",
+    "Wire.end()",
+    "oledHubScanSummary",
+    "scanOledCandidateChannels",
+    "PaHub channel scan",
+    "OLED not on ch0-5",
 ]
 
 for token in forbidden_source_tokens:
@@ -63,6 +79,8 @@ required_readme_tokens = [
     "PaHub channel 1",
     "Avoid using G8/G9 directly",
     "OK/Enter or R retries OLED detection",
+    "OLED fallback I2C frequency: `OLED_I2C_FALLBACK_FREQUENCY = 100000U`",
+    "Shows the active OLED address, bus speed, and a short PaHub channel 1 probe summary",
     "0x3C",
     "0x3D",
 ]

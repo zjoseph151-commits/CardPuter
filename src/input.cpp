@@ -27,6 +27,9 @@ void handleKeyboard() {
     } else if (currentScreen == Screen::Environment && envLogging) {
       stopEnvironmentLogging("Log stopped.");
       setScreen(Screen::MainMenu);
+    } else if (currentScreen == Screen::PiMonitor &&
+               returnPiMonitorProjectList()) {
+      return;
     } else {
       setScreen(Screen::MainMenu);
     }
@@ -107,7 +110,11 @@ void handleKeyboard() {
     }
   } else if (currentScreen == Screen::PiMonitor) {
     for (char key : keys.word) {
-      if (key == 'r' || key == 'R') {
+      if (key == ';' || key == ',') {
+        movePiMonitorSelection(-1);
+      } else if (key == '.' || key == '/') {
+        movePiMonitorSelection(1);
+      } else if (key == 'r' || key == 'R') {
         clearPiMonitorDevices();
         connectPiMonitorMqtt();
         renderPiMonitor();
@@ -118,15 +125,14 @@ void handleKeyboard() {
       } else if (key == 'c' || key == 'C') {
         publishPiMonitorReadNowCommand();
       } else if (key == 'i' || key == 'I') {
-        cyclePiMonitorSetInterval();
+        cyclePiMonitorCommandOption(1);
       } else if (key == 's' || key == 'S') {
-        publishPiMonitorSetIntervalCommand();
+        advancePiMonitorOledMessagePage();
       }
     }
 
     if (keys.enter) {
-      connectPiMonitorMqtt();
-      renderPiMonitor();
+      enterPiMonitorSelection();
     }
   } else if (currentScreen == Screen::VoiceMemos) {
     if (voiceMemoRecording) {
@@ -205,12 +211,20 @@ void handleKeyboard() {
     for (char key : keys.word) {
       if (key == 'r' || key == 'R') {
         oledInitialized = false;
+        oledOnline = false;
+        oledActiveAddress = 0;
+        oledActiveBusFrequency = 0;
+        oledScanSummary = "Retrying...";
         renderOledTest();
       }
     }
 
     if (keys.enter) {
       oledInitialized = false;
+      oledOnline = false;
+      oledActiveAddress = 0;
+      oledActiveBusFrequency = 0;
+      oledScanSummary = "Retrying...";
       renderOledTest();
     }
   } else if (currentScreen == Screen::RtcStatus) {

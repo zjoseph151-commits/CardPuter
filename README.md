@@ -443,7 +443,7 @@ Rules for the WiFi Connect feature:
 
 Behavior:
 
-- Raspberry Pi MQTT monitor with two whitelisted command actions.
+- Raspberry Pi MQTT monitor with a project list, command list, Home / Diagnostics selection, and two whitelisted command actions.
 - Requires Wi-Fi to already be connected through WiFi Connect.
 - Reads Raspberry Pi MQTT settings from a microSD card file.
 - Connects to the MQTT broker with `PubSubClient`.
@@ -453,7 +453,11 @@ Behavior:
 - Publishes retained Cardputer status JSON to `home/devices/scoober-cardputer/status` after MQTT connect and about once per minute while Pi Monitor is open.
 - Uses an MQTT last-will so unexpected disconnects can mark Cardputer availability as `offline`.
 - User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
-- Displays MQTT status, broker address, message count, last topic/payload, command response display, and a compact device list.
+- Opens on an LCD project list with `Home / Diagnostics`, configured projects, and discovered device IDs.
+- In `Home / Diagnostics`, the LCD shows broker/device diagnostics while the OLED shows one header plus the manually paged latest MQTT message from all MQTT traffic.
+- Selecting a project opens an LCD command list for that project's command profile.
+- In a selected project, the OLED shows one header plus the manually paged latest MQTT message filtered to that project only.
+- Displays MQTT status, broker address, message count, last topic/payload, command response display, and compact project/device status.
 - Displays the most recent command status on the monitor screen.
 - Shows `home/devices/<device>/responses`, nested response topics, or post-command updates from `command_target` on a clearer `Resp:` line.
 - Current caveat: user hardware testing on 2026-08-06 still showed `Resp: waiting.`, so `Last` / `Pay` remain the reliable command-feedback view for now.
@@ -461,10 +465,11 @@ Behavior:
 - `C` publishes `{"command":"read_now"}` to `home/devices/<command_target>/commands`.
 - `T` cycles the command target through `command_target` and discovered device IDs.
 - `I` cycles fixed `set_interval` choices: 10, 30, 60, and 300 seconds.
-- `S` publishes `{"command":"set_interval","seconds":<selected>}` to `home/devices/<command_target>/commands`.
+- `S` advances the OLED MQTT message page.
 - Does not publish arbitrary command text, run shell actions, or perform Raspberry Pi admin actions.
 - Disconnects MQTT when leaving the screen.
-- OK/Enter retries MQTT connection.
+- OK/Enter opens the highlighted project or sends the highlighted command; in `Home / Diagnostics`, OK/Enter retries MQTT connection.
+- Backspace returns from a Pi Monitor subview to the project list before returning to the main menu.
 - `R` clears the device list and reconnects.
 - `D` disconnects MQTT.
 
@@ -481,7 +486,10 @@ mqtt_host=10.0.0.180
 mqtt_port=1883
 device_id=scoober-cardputer
 command_target=esp32-c3-test
+project=esp32-c3-test|ESP32-C3 Test|basic
 ```
+
+`command_target` remains supported as the initial/default command target. Add one `project=id|Label|profile` line per MQTT project; the initial firmware command profile is `basic`, which exposes `read_now` and fixed-choice `set_interval`.
 
 Rules for Pi Monitor:
 
@@ -489,6 +497,7 @@ Rules for Pi Monitor:
 - Do not hardcode Pi IPs, MQTT settings, Wi-Fi credentials, or MQTT passwords in source.
 - Do not commit real `pi.txt` files. This repo ignores `/config/pi.txt` and `/pi.txt` in case local copies are created while testing.
 - Keep command publishing whitelisted and explicit. The allowed commands are `read_now` and fixed-choice `set_interval` to `home/devices/<command_target>/commands`.
+- Keep project additions data-driven through `/config/pi.txt` `project=id|Label|profile` lines and firmware command-profile definitions.
 - Do not add free-form interval entry; keep `set_interval` seconds limited to firmware-defined choices.
 - Cardputer may publish only scoped identity/status topics for its own configured `device_id`.
 - User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29.
@@ -613,6 +622,8 @@ Behavior:
 - ENV III remains on PaHub channel 0.
 - Selects PaHub channel 1 before probing, initializing, and drawing OLED content.
 - Probes OLED I2C addresses `0x3C` and `0x3D`.
+- Starts OLED detection at 400 kHz, then retries at 100 kHz if the display does not ACK.
+- Keeps OLED bus-speed changes temporary so ENV III and RTC continue using the normal shared PaHub bus path.
 - The built-in Cardputer LCD remains the main control screen.
 - The OLED is a small glance/status display, not a duplicate of the built-in screen.
 - Dashboard drawing is centralized in `renderOledStatusDashboard()`.
@@ -633,7 +644,7 @@ Dashboard content:
 Screen-specific examples:
 
 - Main menu: `Scoober`, battery, Wi-Fi, mode/menu selection.
-- Pi Monitor: MQTT status, selected target, command status, message/device counts.
+- Pi Monitor: one header plus manually paged MQTT message text using a smaller 5x7 font.
 - Environment: temperature F, humidity, pressure value or `Press: invalid`.
 - Voice Memos: `REC mm:ss` while recording, active/selected memo, SD/status.
 - RTC: DS3231 online/missing, date, time, and AT24C32 presence.
@@ -642,6 +653,7 @@ Screen-specific examples:
 OLED Test diagnostics:
 
 - Draws `Scoober OLED`, `SSD1309 ch1`, the active address, a draw counter, a border, and a moving marker.
+- Shows the active OLED address, bus speed, and a short PaHub channel 1 probe summary on the built-in LCD.
 - OK/Enter or R retries OLED detection.
 - Backspace returns to the main menu.
 
@@ -650,11 +662,16 @@ OLED constants:
 - PaHub channel: `I2C_HUB_OLED_CHANNEL = 1`
 - Primary OLED address: `OLED_I2C_ADDRESS_PRIMARY = 0x3C`
 - Secondary OLED address: `OLED_I2C_ADDRESS_SECONDARY = 0x3D`
+- OLED fast I2C frequency: `OLED_I2C_FAST_FREQUENCY = ENV_I2C_FREQUENCY`
+- OLED fallback I2C frequency: `OLED_I2C_FALLBACK_FREQUENCY = 100000U`
+- OLED probe attempts per speed: `OLED_PROBE_ATTEMPTS = 3`
 - OLED Test refresh interval: `OLED_TEST_REFRESH_INTERVAL_MS = 1000`
 - OLED Status Dashboard refresh interval: `OLED_STATUS_REFRESH_INTERVAL_MS = 1000`
 - OLED retry interval: `OLED_RETRY_INTERVAL_MS = 3000`
 - OLED status lines: `OLED_STATUS_LINE_COUNT = 5`
 - OLED line length: `OLED_STATUS_MAX_CHARS = 21`
+- Pi Monitor OLED message lines: `PI_MONITOR_OLED_MESSAGE_LINE_COUNT = 8`
+- Pi Monitor OLED message line length: `PI_MONITOR_OLED_MESSAGE_MAX_CHARS = 25`
 
 ### RTC Status
 
@@ -1349,6 +1366,9 @@ After upload:
 - Pi Monitor connects to the configured MQTT broker when `/config/pi.txt` is valid.
 - Pi Monitor increments `Msgs` and shows the last topic/payload for incoming `home/#` messages.
 - Pi Monitor updates the device list for `home/devices/<device>/<kind>` topics.
+- Pi Monitor opens on a project list with `Home / Diagnostics`, configured projects, and discovered device IDs.
+- Pi Monitor opens a command list for the selected project and uses the OLED for a one-header, manually paged, project-filtered MQTT message viewer.
+- Pi Monitor accepts `project=id|Label|profile` lines in `/config/pi.txt`; `command_target=esp32-c3-test` remains compatible.
 - Pi Monitor publishes Cardputer availability to `home/devices/scoober-cardputer/availability` and status JSON to `home/devices/scoober-cardputer/status`.
 - User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
 - Pi Monitor publishes `read_now` to `home/devices/<command_target>/commands` with `C` when `command_target=esp32-c3-test` is present in `/config/pi.txt`.
@@ -1402,6 +1422,8 @@ After upload:
 - If using Unit PaHub v2.1, leave the DIP switch at default `0x70` for this firmware step.
 - If the OLED Status Dashboard stays blank, open OLED Test to see whether the firmware reports `PaHub not found` or `OLED not found`.
 - If OLED Test says `PaHub not found`, confirm the PaHub input is connected to Cardputer Grove and the DIP switch is at `0x70`.
+- If OLED Test says `OLED not found`, check the `Scan:` line for the last channel 1 `0x3C` / `0x3D` probe errors and retry with OK/Enter or R.
+- If OLED Test shows `Bus:100k` and the OLED works, leave it on the slower fallback for now; the firmware will keep using that speed for OLED drawing.
 - If OLED Test says `OLED not found`, confirm the OLED is on PaHub channel 1 and try OK/Enter or R.
 - If RTC says `PaHub ch5 missing`, confirm the PaHub input is connected, the DIP switch is at `0x70`, and the RTC module is on PaHub channel 5.
 - If RTC says `DS3231 not found`, confirm the module power/wiring and use OK/Enter or R to retry detection.

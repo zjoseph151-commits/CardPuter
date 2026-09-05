@@ -22,6 +22,8 @@ required_source_tokens = [
     "OLED_RETRY_INTERVAL_MS = 3000",
     "OLED_STATUS_LINE_COUNT = 5",
     "OLED_STATUS_MAX_CHARS = 21",
+    "PI_MONITOR_OLED_MESSAGE_LINE_COUNT = 8",
+    "PI_MONITOR_OLED_MESSAGE_MAX_CHARS = 25",
     "serviceOledStatusDashboard()",
     "renderOledStatusDashboard()",
     "setOledStatusLine(const String& line)",
@@ -46,8 +48,14 @@ required_source_tokens = [
     "WiFi:",
     "MQTT:",
     "Mode: Menu",
-    "Tgt: ",
-    "Cmd: ",
+    "renderPiMonitorOledMessages",
+    "buildPiMonitorOledWrappedLines",
+    "drawPiMonitorOledMessageLine",
+    "piMonitorLatestOledMessageText",
+    "piMonitorLatestOledMessageSequence",
+    "advancePiMonitorOledMessagePage",
+    "u8g2_font_5x7_tf",
+    "MQTT ",
     "REC %02lu:%02lu",
     "Press: invalid",
     "DS3231:",
@@ -70,6 +78,7 @@ forbidden_source_tokens = [
     "buildRfScanOledLines",
     "Screen::RfScanner",
     "rfScan",
+    "PI_MONITOR_OLED_PAGE_INTERVAL_MS",
 ]
 
 for token in forbidden_source_tokens:

@@ -74,7 +74,7 @@ void setScreen(Screen screen) {
       showWifiConnect();
       break;
     case Screen::PiMonitor:
-      drawScreenFrame("Pi Monitor (T tgt C/I/S)");
+      drawScreenFrame("Pi Monitor (Projects)");
       showPiMonitor();
       break;
     case Screen::VoiceMemos:

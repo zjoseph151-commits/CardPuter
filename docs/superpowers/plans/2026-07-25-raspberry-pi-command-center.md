@@ -39,7 +39,7 @@ Rejected for the first milestone:
 
 Add a read-only `Pi Monitor` screen.
 
-Implementation note: the first firmware pass was added on 2026-07-27. User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29. The first whitelisted `read_now` command publisher was added and confirmed working on Cardputer hardware on 2026-07-30. Cardputer status/availability publishing was added on 2026-08-08 and confirmed working on hardware on 2026-08-15. Fixed-choice `set_interval` publishing was added and confirmed working on hardware on 2026-08-15. Target selection was added and confirmed working on hardware on 2026-08-15.
+Implementation note: the first firmware pass was added on 2026-07-27. User confirmed Pi Monitor MQTT viewing works on Cardputer hardware on 2026-07-29. The first whitelisted `read_now` command publisher was added and confirmed working on Cardputer hardware on 2026-07-30. Cardputer status/availability publishing was added on 2026-08-08 and confirmed working on hardware on 2026-08-15. Fixed-choice `set_interval` publishing was added and confirmed working on hardware on 2026-08-15. Target selection was added and confirmed working on hardware on 2026-08-15. The Pi Monitor UI was expanded to a project list, command list, and Home / Diagnostics split so new MQTT projects can be added cleanly. The Pi Monitor OLED was then changed to a message-only 5x7 font view with one header and manual `S` paging through wrapped MQTT topic/payload text.
 
 The first firmware version should:
 
@@ -49,7 +49,10 @@ The first firmware version should:
 - Connect to the Raspberry Pi MQTT broker.
 - Subscribe to `home/#` for read-only visibility while testing.
 - Treat `home/devices/<device>/<kind>` topics as structured device-list updates.
-- Show broker status, message count, last topic/payload, and a compact device list on the Cardputer display.
+- Show broker status, message count, last topic/payload, and compact project/device status on the Cardputer display.
+- Open on a project list with `Home / Diagnostics`, configured projects, and discovered device IDs.
+- Open a command list for the selected project.
+- Use the OLED as a message-only viewer with one header plus manually paged MQTT text: selected-project messages in project command view and all MQTT messages in `Home / Diagnostics`.
 - Keep Backspace returning safely to the main menu.
 - Do not implement direct shell control, remote command execution, or Pi admin actions.
 
@@ -60,9 +63,10 @@ mqtt_host=10.0.0.180
 mqtt_port=1883
 device_id=scoober-cardputer
 command_target=esp32-c3-test
+project=esp32-c3-test|ESP32-C3 Test|basic
 ```
 
-`mqtt_host` should be the Raspberry Pi broker IP or resolvable hostname. `command_target` should be the explicit device id used in `home/devices/<command_target>/commands`.
+`mqtt_host` should be the Raspberry Pi broker IP or resolvable hostname. `command_target` should be the explicit device id used in `home/devices/<command_target>/commands`. `command_target` remains compatible as the initial/default target, while `project=id|Label|profile` is the scalable project entry format. The initial firmware command profile is `basic`, with `read_now` and fixed-choice `set_interval`.
 
 ## First Command Action
 
@@ -71,7 +75,11 @@ Add whitelisted MQTT command publishers before adding any target picker or free-
 - Press `C` in Pi Monitor to publish `{"command":"read_now"}`.
 - Press `T` to cycle the command target through `command_target` and discovered device IDs.
 - Press `I` to cycle fixed `set_interval` choices: 10, 30, 60, and 300 seconds.
-- Press `S` in Pi Monitor to publish `{"command":"set_interval","seconds":<selected>}`.
+- Press OK on the selected `set_interval` command to publish `{"command":"set_interval","seconds":<selected>}`.
+- Press `S` to advance the OLED MQTT message page manually.
+- Press arrow keys to scroll the current project list or command list.
+- Press OK to open a highlighted project or send the highlighted command; in `Home / Diagnostics`, OK retries MQTT.
+- Press Backspace to return from a Pi Monitor subview to the project list before leaving Pi Monitor.
 - Publish only to `home/devices/<command_target>/commands`.
 - Keep `home/#` subscribed so message count and last topic/payload still show incoming responses or telemetry.
 - Show response topics such as `home/devices/<device>/responses`, nested response topics, or post-command updates from `command_target` on a dedicated `Resp:` line.
@@ -121,6 +129,7 @@ After the read-only monitor and first command work on hardware:
 3. Revisit Pi-side command support only if a target does not handle the selected command.
 4. Consider a Pi-side JSON API only if the Cardputer needs dashboard data that MQTT does not already provide.
 5. Revisit MQTT authentication after Mosquitto configuration is confirmed on the Raspberry Pi.
+6. Add new command profiles only as explicit firmware definitions, then map projects to them with `project=id|Label|profile`.
 
 ## Acceptance Checks
 
@@ -132,13 +141,17 @@ Before calling the first firmware milestone complete:
 - Correct broker settings show MQTT connected.
 - Incoming `home/#` messages increment `Msgs` and update `Last`/`Pay`.
 - Incoming `home/devices/<device>/<kind>` messages update the device list.
+- The project list shows `Home / Diagnostics`, configured projects, and discovered device IDs.
+- The command list opens for the selected project.
+- `Home / Diagnostics` shows diagnostics on the LCD and one-header manually paged all-message MQTT text on the OLED.
+- A selected project shows command controls on the LCD and one-header manually paged project-filtered MQTT text on the OLED.
 - Incoming `home/devices/<device>/responses`, nested response topics, or post-command `command_target` updates update `Resp:`.
 - Cardputer publishes retained status to `home/devices/scoober-cardputer/status`.
 - Cardputer publishes retained availability to `home/devices/scoober-cardputer/availability`.
 - With `command_target=esp32-c3-test`, pressing `C` publishes `read_now` to `home/devices/<command_target>/commands`.
 - Pressing `T` cycles through `command_target` and discovered device IDs, excluding the Cardputer's own MQTT identity.
 - User confirmed target selection works on Cardputer hardware on 2026-08-15.
-- Pressing `I` cycles fixed `set_interval` choices and pressing `S` publishes the selected interval to `home/devices/<command_target>/commands`.
+- Pressing `I` cycles fixed `set_interval` choices, pressing OK publishes the selected command to `home/devices/<command_target>/commands`, and pressing `S` advances the OLED MQTT message page.
 - Backspace returns to the menu.
 - No Wi-Fi or MQTT passwords are hardcoded in source.
 - Real local `/config/pi.txt` files are ignored by Git.

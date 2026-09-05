@@ -43,6 +43,19 @@ constexpr uint32_t PI_MONITOR_RESPONSE_WINDOW_MS = 30000;
 constexpr uint32_t PI_MONITOR_STATUS_PUBLISH_INTERVAL_MS = 60000;
 constexpr int MAX_PI_MONITOR_DEVICES = 6;
 constexpr int PI_MONITOR_VISIBLE_DEVICES = 1;
+constexpr int MAX_PI_MONITOR_PROJECTS = 8;
+constexpr int MAX_PI_MONITOR_MESSAGES = 8;
+constexpr uint16_t PI_MONITOR_MESSAGE_TOPIC_MAX_CHARS = 96;
+constexpr uint16_t PI_MONITOR_MESSAGE_PAYLOAD_MAX_CHARS =
+    PI_MQTT_PACKET_BUFFER_SIZE - 1;
+constexpr uint8_t PI_MONITOR_OLED_MESSAGE_LINE_COUNT = 8;
+constexpr uint8_t PI_MONITOR_OLED_MESSAGE_BODY_LINES =
+    PI_MONITOR_OLED_MESSAGE_LINE_COUNT - 1;
+constexpr uint8_t PI_MONITOR_OLED_MESSAGE_MAX_CHARS = 25;
+constexpr uint8_t PI_MONITOR_OLED_WRAPPED_LINE_LIMIT = 32;
+constexpr int PI_MONITOR_PROJECT_VISIBLE_ROWS = 5;
+constexpr int PI_MONITOR_COMMAND_VISIBLE_ROWS = 4;
+constexpr const char* PI_MONITOR_DEFAULT_COMMAND_PROFILE = "basic";
 constexpr int PI_MONITOR_SET_INTERVAL_OPTION_COUNT = 4;
 constexpr uint16_t PI_MONITOR_SET_INTERVAL_OPTIONS_SECONDS[PI_MONITOR_SET_INTERVAL_OPTION_COUNT] = {
     10, 30, 60, 300};
@@ -100,6 +113,9 @@ constexpr uint8_t I2C_HUB_RTC_CHANNEL = 5;
 constexpr uint16_t I2C_HUB_CHANNEL_SETTLE_US = 1000;
 constexpr uint8_t OLED_I2C_ADDRESS_PRIMARY = 0x3C;
 constexpr uint8_t OLED_I2C_ADDRESS_SECONDARY = 0x3D;
+constexpr uint32_t OLED_I2C_FAST_FREQUENCY = ENV_I2C_FREQUENCY;
+constexpr uint32_t OLED_I2C_FALLBACK_FREQUENCY = 100000U;
+constexpr uint8_t OLED_PROBE_ATTEMPTS = 3;
 constexpr uint32_t OLED_TEST_REFRESH_INTERVAL_MS = 1000;
 constexpr uint32_t OLED_STATUS_REFRESH_INTERVAL_MS = 1000;
 constexpr uint32_t OLED_RETRY_INTERVAL_MS = 3000;
@@ -214,6 +230,39 @@ struct PiMonitorDevice {
   unsigned long lastSeenMs = 0;
 };
 
+enum class PiMonitorView {
+  ProjectList,
+  ProjectCommands,
+  Diagnostics,
+};
+
+enum class PiMonitorCommandKind {
+  ReadNow,
+  SetInterval,
+};
+
+struct PiMonitorCommandDef {
+  const char* label;
+  PiMonitorCommandKind kind;
+};
+
+struct PiMonitorProjectConfig {
+  bool active = false;
+  String id;
+  String label;
+  String profile;
+};
+
+struct PiMonitorMessage {
+  bool active = false;
+  String topic;
+  String payload;
+  String deviceId;
+  String topicKind;
+  unsigned long receivedMs = 0;
+  uint32_t sequence = 0;
+};
+
 struct GnssSkySatellite {
   bool active = false;
   char constellation = '?';
@@ -317,6 +366,15 @@ extern String piMonitorLastTopic;
 extern String piMonitorLastPayload;
 extern uint32_t piMonitorMessageCount;
 extern PiMonitorDevice piMonitorDevices[MAX_PI_MONITOR_DEVICES];
+extern PiMonitorView piMonitorView;
+extern PiMonitorProjectConfig piMonitorProjects[MAX_PI_MONITOR_PROJECTS];
+extern PiMonitorMessage piMonitorMessages[MAX_PI_MONITOR_MESSAGES];
+extern int selectedPiMonitorProjectIndex;
+extern int piMonitorProjectScrollOffset;
+extern int selectedPiMonitorCommandIndex;
+extern int piMonitorCommandScrollOffset;
+extern int piMonitorMessageWriteIndex;
+extern uint32_t piMonitorStoredMessageCount;
 extern VoiceMemoFile voiceMemos[MAX_VOICE_MEMOS];
 extern int voiceMemoCount;
 extern int selectedVoiceMemoIndex;
@@ -373,6 +431,7 @@ extern String envStatus;
 extern String i2cHubStatus;
 extern String oledStatus;
 extern String oledStatusLine;
+extern String oledScanSummary;
 extern String rtcStatus;
 extern String loraStatus;
 extern String loraRadioStatus;
@@ -402,6 +461,7 @@ extern int loraRadioState;
 extern int sharedSpiOwner;
 extern int selectedGnssSkySatelliteIndex;
 extern uint8_t oledActiveAddress;
+extern uint32_t oledActiveBusFrequency;
 extern uint8_t rtcMonth;
 extern uint8_t rtcDay;
 extern uint8_t rtcHour;
@@ -573,12 +633,24 @@ void disconnectPiMonitorMqtt();
 uint16_t selectedPiMonitorSetIntervalSeconds();
 void cyclePiMonitorCommandTarget();
 void cyclePiMonitorSetInterval();
+void movePiMonitorSelection(int direction);
+void enterPiMonitorSelection();
+bool returnPiMonitorProjectList();
+void cyclePiMonitorCommandOption(int direction);
+bool publishSelectedPiMonitorCommand();
 bool publishPiMonitorReadNowCommand();
 bool publishPiMonitorSetIntervalCommand();
 void stopPiMonitor();
 void servicePiMonitor();
 void clearPiMonitorDevices();
 void handlePiMonitorMessage(char* topic, byte* payload, unsigned int length);
+const char* piMonitorViewLabel();
+String activePiMonitorProjectLabel();
+String activePiMonitorProjectId();
+String piMonitorLatestOledMessageText();
+uint32_t piMonitorLatestOledMessageSequence();
+uint32_t piMonitorFilteredMessageCount();
+void advancePiMonitorOledMessagePage();
 bool initVoiceMemoSd();
 void scanVoiceMemos();
 bool findNextVoiceMemoPath(String& path, String& name);

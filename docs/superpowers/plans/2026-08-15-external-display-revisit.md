@@ -80,6 +80,7 @@ Rejected direction:
 - [x] OLED Test proof-of-life screen was added.
 - [x] Select PaHub channel 1 before OLED probe/init/draw.
 - [x] Probe `0x3C` and `0x3D`.
+- [x] Retry OLED detection at 400 kHz and then 100 kHz, with a built-in LCD channel 1 probe summary for channel/address diagnostics.
 - [x] Draw a simple SSD1309 proof pattern with text, address, counter, border, and moving marker.
 - [x] Hardware-test OLED Test with the SSD1309 on PaHub channel 1.
 - [x] Verify arrow keys after wiring.

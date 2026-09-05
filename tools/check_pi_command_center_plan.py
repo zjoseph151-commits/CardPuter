@@ -12,6 +12,7 @@ PLAN_PATH = ROOT / "docs" / "superpowers" / "plans" / "2026-07-25-raspberry-pi-c
 PLAN = PLAN_PATH.read_text(encoding="utf-8")
 SOURCE = firmware_source_text()
 PI_MONITOR_SOURCE = (ROOT / "src" / "pi_monitor.cpp").read_text(encoding="utf-8")
+INPUT_SOURCE = (ROOT / "src" / "input.cpp").read_text(encoding="utf-8")
 PLATFORMIO = (ROOT / "platformio.ini").read_text(encoding="utf-8")
 
 
@@ -42,13 +43,17 @@ def test_priority_6_plan_is_documented():
         "home/devices/scoober-cardputer/status",
         "home/devices/scoober-cardputer/availability",
         "target selection",
+        "project list",
+        "command list",
+        "Home / Diagnostics",
+        "project=id|Label|profile",
         "Do not implement direct shell control",
     ]
 
     require_tokens(PLAN, required_tokens, "Priority #6 plan")
-    require_tokens(README, required_tokens[:10], "README Priority #6 plan")
-    require_tokens(NOTES, required_tokens[:10], "notes Priority #6 plan")
-    require_tokens(TODO, required_tokens[:10], "TODO Priority #6 plan")
+    require_tokens(README, required_tokens[:14], "README Priority #6 plan")
+    require_tokens(NOTES, required_tokens[:14], "notes Priority #6 plan")
+    require_tokens(TODO, required_tokens[:14], "TODO Priority #6 plan")
     response_tokens = [
         "command response display",
         "home/devices/<device>/responses",
@@ -86,6 +91,18 @@ def test_priority_6_plan_is_documented():
     require_tokens(README, target_tokens, "README Pi target selection")
     require_tokens(NOTES, target_tokens, "notes Pi target selection")
     require_tokens(TODO, target_tokens, "TODO Pi target selection")
+    project_ui_tokens = [
+        "project list",
+        "command list",
+        "Home / Diagnostics",
+        "project=id|Label|profile",
+        "manually paged",
+        "`S` advances the OLED MQTT message page",
+    ]
+    require_tokens(PLAN, project_ui_tokens, "Priority #6 project UI")
+    require_tokens(README, project_ui_tokens, "README Pi project UI")
+    require_tokens(NOTES, project_ui_tokens, "notes Pi project UI")
+    require_tokens(TODO, project_ui_tokens, "TODO Pi project UI")
 
 
 def test_local_pi_config_paths_are_ignored():
@@ -119,10 +136,39 @@ def test_pi_monitor_firmware_is_implemented():
         "servicePiMonitor()",
         "clearPiMonitorDevices()",
         "handlePiMonitorMessage(",
+        "PiMonitorView",
+        "PiMonitorView::ProjectList",
+        "PiMonitorView::ProjectCommands",
+        "PiMonitorView::Diagnostics",
+        "PiMonitorCommandDef",
+        "PiMonitorProjectConfig",
+        "PiMonitorMessage",
+        "MAX_PI_MONITOR_PROJECTS",
+        "MAX_PI_MONITOR_MESSAGES",
+        "PI_MONITOR_DEFAULT_COMMAND_PROFILE",
+        "buildPiMonitorProjectItems",
+        "parsePiMonitorProjectConfig",
+        "movePiMonitorSelection",
+        "enterPiMonitorSelection",
+        "returnPiMonitorProjectList",
+        "cyclePiMonitorCommandOption",
+        "publishSelectedPiMonitorCommand",
+        "recordPiMonitorMessage",
+        "PI_MONITOR_MESSAGE_TOPIC_MAX_CHARS",
+        "PI_MONITOR_MESSAGE_PAYLOAD_MAX_CHARS",
+        "PI_MONITOR_OLED_MESSAGE_LINE_COUNT",
+        "PI_MONITOR_OLED_MESSAGE_BODY_LINES",
+        "PI_MONITOR_OLED_MESSAGE_MAX_CHARS",
+        "piMonitorLatestOledMessageText",
+        "piMonitorLatestOledMessageSequence",
+        "advancePiMonitorOledMessagePage",
+        "piMonitorFilteredMessageCount",
+        "Home / Diagnostics",
         'key == "mqtt_host"',
         'key == "mqtt_port"',
         'key == "device_id"',
         'key == "command_target"',
+        'key == "project"',
         'subscribe("home/#")',
         "PI_MONITOR_READ_NOW_PAYLOAD",
         "PI_MONITOR_SET_INTERVAL_OPTIONS_SECONDS",
@@ -133,8 +179,10 @@ def test_pi_monitor_firmware_is_implemented():
         "isPiMonitorOwnDevice",
         'key == "command_target"',
         "key == 't' || key == 'T'",
+        "key == ';' || key == ','",
+        "key == '.' || key == '/'",
+        "key == 's' || key == 'S'",
         'String("home/devices/") + commandTarget + "/commands"',
-        "Tgt: %s",
         "piMonitorMqttClient.publish(commandTopic.c_str(), PI_MONITOR_READ_NOW_PAYLOAD)",
         "buildPiMonitorSetIntervalPayload",
         'document["command"] = "set_interval"',
@@ -199,6 +247,8 @@ def test_pi_monitor_publishing_is_scoped():
     forbidden_source_tokens = [
         '"home/devices/+/commands"',
         '"home/devices/+/responses"',
+        "PI_MONITOR_OLED_PAGE_INTERVAL_MS",
+        "now - lastPiMonitorOledPageMs",
         "ssh",
         "shell",
         "sudo",
@@ -209,6 +259,13 @@ def test_pi_monitor_publishing_is_scoped():
         assert token not in PI_MONITOR_SOURCE, (
             f"Pi Monitor command publishing must stay tightly scoped: {token}"
         )
+
+    assert "advancePiMonitorOledMessagePage();" in INPUT_SOURCE, (
+        "Pi Monitor S key should manually advance the OLED MQTT page"
+    )
+    assert "publishPiMonitorSetIntervalCommand();" not in INPUT_SOURCE, (
+        "Pi Monitor set_interval should be sent from the selected command path, not S"
+    )
 
 
 if __name__ == "__main__":

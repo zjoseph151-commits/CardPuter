@@ -61,13 +61,17 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - `mqtt_port=1883`
   - `device_id=scoober-cardputer`
   - `command_target=esp32-c3-test`
+  - `project=esp32-c3-test|ESP32-C3 Test|basic`
 - First subscription:
   - `home/#`
 - First screen behavior:
   - require Wi-Fi to already be connected through WiFi Connect
   - show MQTT broker connection status
   - show message count, last topic/payload, and command response display for incoming `home/#` messages
-  - show a compact device list/status view
+  - open on a project list with `Home / Diagnostics`, configured projects, and discovered device IDs
+  - open a command list when a project is selected
+  - use the OLED as a message-only viewer with one header plus manually paged MQTT text: selected-project messages in project command view and all MQTT messages in `Home / Diagnostics`
+  - show a compact project/device status view
   - update the device list for `home/devices/<device>/<kind>` topics
   - show response topics such as `home/devices/<device>/responses`, nested response topics, and post-command `command_target` updates on a dedicated `Resp:` line
   - publish Cardputer availability to `home/devices/scoober-cardputer/availability`
@@ -75,15 +79,17 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - publish whitelisted `read_now` to `home/devices/<command_target>/commands` with `C`
   - cycle command targets with `T`
   - cycle fixed `set_interval` choices with `I`: 10, 30, 60, and 300 seconds
-  - publish whitelisted `set_interval` to `home/devices/<command_target>/commands` with `S`
+  - publish whitelisted `set_interval` to `home/devices/<command_target>/commands` with OK on the selected command
   - fail gracefully when Wi-Fi, SD config, or broker connection is missing
   - keep Backspace return-to-menu behavior
 - Controls:
-  - OK retries MQTT connection
+  - arrows scroll the current project list or command list
+  - OK opens the highlighted project or sends the highlighted command; OK retries MQTT in `Home / Diagnostics`
+  - Backspace returns from a Pi Monitor subview to the project list before returning to the main menu
   - `C` publishes `{"command":"read_now"}` to the configured command target
   - `T` cycles command target between configured and discovered devices
   - `I` cycles fixed `set_interval` choices
-  - `S` publishes `{"command":"set_interval","seconds":<selected>}` to the configured command target
+  - `S` advances the OLED MQTT message page
   - `R` clears the device list and reconnects
   - `D` disconnects MQTT
 - Hardware test checklist:
@@ -95,7 +101,8 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - `Resp:` still stayed on `waiting` during 2026-08-06 hardware testing; not blocking while `Last` / `Pay` show command feedback
   - missing `/config/pi.txt`, Wi-Fi disconnected, and wrong broker IP/port still worth spot-checking after future edits
 - Do not implement direct shell control, remote command execution, Pi admin actions, arbitrary command entry, or risky commands.
-- Priority #6 is complete enough unless the Pi-side listener needs new command support.
+- New project entries can be added with `project=id|Label|profile`; the first firmware command profile is `basic`.
+- Priority #6 is complete enough unless the Pi-side listener needs new command support or new project command profiles.
 - Revisit `Resp:` only if future commands need explicit success/failure acknowledgments beyond `Last` / `Pay`.
 
 ## Priority 7: External Display Revisit
@@ -120,6 +127,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - U8g2 dependency active
   - select PaHub channel 1 before OLED probe/init/draw
   - probe `0x3C` and `0x3D`
+  - retry OLED detection at 400 kHz and then 100 kHz with a short LCD channel 1 probe summary
   - draw a simple SSD1309 proof pattern
   - OK/Enter or `R` retries OLED detection
 - User confirmed OLED Test works on hardware on 2026-08-15.
@@ -129,7 +137,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - keep optional feature context available through `setOledStatusLine(...)`
   - show current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and compact feature context
   - Main Menu shows Scoober, battery, Wi-Fi, mode/menu selection
-  - Pi Monitor shows MQTT, target, command, and message/device context
+  - Pi Monitor shows a message-only 5x7 OLED view with manually paged MQTT text
   - Environment shows temperature, humidity, and valid pressure or `Press: invalid`
   - Voice Memos shows recording timer or selected memo/status
   - Level shows compact level/tilt context
@@ -155,7 +163,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Main Menu: show project identity, battery, Wi-Fi/MQTT summary, and selected feature.
   - Battery/System: show glanceable power/system values.
   - WiFi screens: show connection state, selected SSID, IP/status, and saved count.
-  - Pi Monitor: show MQTT status, selected target, selected command, and compact activity.
+  - Pi Monitor: show one header plus manually paged MQTT message text with a smaller 5x7 font.
   - Voice Memos: show recording timer, playback/recording state, file name, and storage status.
   - Environment: show temperature, humidity, pressure validity, logging state, and maybe trend later.
   - Level: show compact X/Y or level/tilt status.
@@ -401,3 +409,5 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User confirmed Pi Monitor `set_interval` command publishing works on hardware on 2026-08-15.
 - Added Pi Monitor target selection using `T` to cycle configured and discovered devices.
 - User confirmed Pi Monitor target selection works on hardware on 2026-08-15.
+- Expanded Pi Monitor into a project list / command list UI with `Home / Diagnostics`, project-filtered OLED MQTT messages, all-message diagnostics OLED output, and `/config/pi.txt` `project=id|Label|profile` entries while preserving the whitelisted publish boundary.
+- Adjusted Pi Monitor OLED output to a message-only 5x7 view with one header and manual paging through wrapped MQTT topic/payload text using `S`.

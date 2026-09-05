@@ -2,6 +2,10 @@
 
 namespace {
 
+uint32_t lastPiMonitorOledMessageSequence = 0;
+uint8_t piMonitorOledPageIndex = 0;
+String lastPiMonitorOledScope;
+
 String screenTitleForOled() {
   switch (currentScreen) {
     case Screen::MainMenu:
@@ -53,6 +57,101 @@ String clippedOledText(const String& text) {
   return text.substring(0, OLED_STATUS_MAX_CHARS);
 }
 
+String formatI2cAddress(uint8_t address) {
+  char buffer[6];
+  snprintf(buffer, sizeof(buffer), "0x%02X", address);
+  return String(buffer);
+}
+
+uint32_t currentOledBusFrequency() {
+  return oledActiveBusFrequency > 0 ? oledActiveBusFrequency
+                                    : OLED_I2C_FAST_FREQUENCY;
+}
+
+void setOledBusClock() {
+  const uint32_t frequency = currentOledBusFrequency();
+  Wire.setClock(frequency);
+  oledDisplay.setBusClock(frequency);
+}
+
+void restoreExternalI2cBusClock() {
+  Wire.setClock(ENV_I2C_FREQUENCY);
+}
+
+void configureExternalI2cForOled(uint32_t frequency) {
+  static bool externalI2cStarted = false;
+  if (!externalI2cStarted && !i2cHubDetected) {
+    Wire.begin(ENV_I2C_SDA_PIN, ENV_I2C_SCL_PIN, frequency);
+    externalI2cStarted = true;
+  }
+
+  Wire.setClock(frequency);
+  delay(2);
+}
+
+bool probeSelectedI2cAddress(uint8_t address, uint8_t* error = nullptr) {
+  Wire.beginTransmission(address);
+  const uint8_t result = Wire.endTransmission();
+  if (error != nullptr) {
+    *error = result;
+  }
+
+  return result == 0;
+}
+
+String oledProbeFailureSummary(uint32_t frequency, uint8_t primaryError,
+                               uint8_t secondaryError) {
+  return String("ch") + String(I2C_HUB_OLED_CHANNEL) + " " +
+         formatI2cAddress(OLED_I2C_ADDRESS_PRIMARY) + "/" +
+         formatI2cAddress(OLED_I2C_ADDRESS_SECONDARY) + " e" +
+         String(primaryError) + "/" + String(secondaryError) + " @" +
+         String(frequency / 1000UL) + "k";
+}
+
+bool tryOledProbeAtFrequency(uint32_t frequency) {
+  oledActiveBusFrequency = frequency;
+  configureExternalI2cForOled(frequency);
+
+  if (!detectI2cHub()) {
+    oledScanSummary = "No PaHub";
+    return false;
+  }
+
+  if (!selectOledI2cPath()) {
+    oledScanSummary = "PaHub select fail";
+    return false;
+  }
+
+  uint8_t lastPrimaryError = 0;
+  uint8_t lastSecondaryError = 0;
+  for (uint8_t attempt = 0; attempt < OLED_PROBE_ATTEMPTS; ++attempt) {
+    if (probeSelectedI2cAddress(OLED_I2C_ADDRESS_PRIMARY, &lastPrimaryError)) {
+      oledActiveAddress = OLED_I2C_ADDRESS_PRIMARY;
+      oledActiveBusFrequency = frequency;
+      oledScanSummary = String("ch") + String(I2C_HUB_OLED_CHANNEL) + " " +
+                        formatI2cAddress(oledActiveAddress) + " @" +
+                        String(frequency / 1000UL) + "k";
+      return true;
+    }
+
+    if (probeSelectedI2cAddress(OLED_I2C_ADDRESS_SECONDARY,
+                                &lastSecondaryError)) {
+      oledActiveAddress = OLED_I2C_ADDRESS_SECONDARY;
+      oledActiveBusFrequency = frequency;
+      oledScanSummary = String("ch") + String(I2C_HUB_OLED_CHANNEL) + " " +
+                        formatI2cAddress(oledActiveAddress) + " @" +
+                        String(frequency / 1000UL) + "k";
+      return true;
+    }
+
+    delay(20);
+  }
+
+  oledScanSummary =
+      oledProbeFailureSummary(frequency, lastPrimaryError, lastSecondaryError);
+  return false;
+}
+
 void drawOledLine(uint8_t row, const String& text) {
   if (row >= OLED_STATUS_LINE_COUNT) {
     return;
@@ -61,6 +160,117 @@ void drawOledLine(uint8_t row, const String& text) {
   const uint8_t y = 10 + (row * 12);
   const String clipped = clippedOledText(text);
   oledDisplay.drawStr(0, y, clipped.c_str());
+}
+
+String piMonitorOledScopeLabel() {
+  String scope = activePiMonitorProjectLabel();
+  scope.trim();
+  if (scope.length() == 0 || scope == "No project") {
+    scope = "Home";
+  } else if (scope == "Home / Diagnostics") {
+    scope = "Home";
+  }
+
+  return scope.substring(0, 12);
+}
+
+void drawPiMonitorOledMessageLine(uint8_t row, const String& text) {
+  if (row >= PI_MONITOR_OLED_MESSAGE_LINE_COUNT) {
+    return;
+  }
+
+  const uint8_t y = 7 + (row * 8);
+  oledDisplay.drawStr(
+      0, y, text.substring(0, PI_MONITOR_OLED_MESSAGE_MAX_CHARS).c_str());
+}
+
+void appendPiMonitorOledWrappedSegment(String lines[], uint8_t& lineCount,
+                                       const String& segment) {
+  if (lineCount >= PI_MONITOR_OLED_WRAPPED_LINE_LIMIT) {
+    return;
+  }
+
+  if (segment.length() == 0) {
+    lines[lineCount++] = "";
+    return;
+  }
+
+  int start = 0;
+  while (start < segment.length() &&
+         lineCount < PI_MONITOR_OLED_WRAPPED_LINE_LIMIT) {
+    lines[lineCount++] =
+        segment.substring(start, start + PI_MONITOR_OLED_MESSAGE_MAX_CHARS);
+    start += PI_MONITOR_OLED_MESSAGE_MAX_CHARS;
+  }
+}
+
+uint8_t buildPiMonitorOledWrappedLines(String lines[]) {
+  String messageText = piMonitorLatestOledMessageText();
+  messageText.replace('\r', '\n');
+
+  uint8_t lineCount = 0;
+  int start = 0;
+  while (start <= messageText.length() &&
+         lineCount < PI_MONITOR_OLED_WRAPPED_LINE_LIMIT) {
+    int end = messageText.indexOf('\n', start);
+    if (end < 0) {
+      end = messageText.length();
+    }
+
+    appendPiMonitorOledWrappedSegment(lines, lineCount,
+                                      messageText.substring(start, end));
+    if (end >= messageText.length()) {
+      break;
+    }
+    start = end + 1;
+  }
+
+  return lineCount;
+}
+
+void renderPiMonitorOledMessages() {
+  const String scope = piMonitorOledScopeLabel();
+  const uint32_t messageSequence = piMonitorLatestOledMessageSequence();
+  if (messageSequence != lastPiMonitorOledMessageSequence ||
+      scope != lastPiMonitorOledScope) {
+    lastPiMonitorOledMessageSequence = messageSequence;
+    lastPiMonitorOledScope = scope;
+    piMonitorOledPageIndex = 0;
+  }
+
+  String wrappedLines[PI_MONITOR_OLED_WRAPPED_LINE_LIMIT];
+  const uint8_t wrappedLineCount = buildPiMonitorOledWrappedLines(wrappedLines);
+  const uint8_t pageCount =
+      max(static_cast<uint8_t>(1),
+          static_cast<uint8_t>((wrappedLineCount + PI_MONITOR_OLED_MESSAGE_BODY_LINES -
+                                1) /
+                               PI_MONITOR_OLED_MESSAGE_BODY_LINES));
+
+  if (piMonitorOledPageIndex >= pageCount) {
+    piMonitorOledPageIndex = 0;
+  }
+
+  oledDrawCount++;
+  oledDisplay.clearBuffer();
+  setOledBusClock();
+  oledDisplay.setFont(u8g2_font_5x7_tf);
+
+  String header =
+      String("MQTT ") + scope + " S " + String(piMonitorOledPageIndex + 1) +
+      "/" + String(pageCount);
+  drawPiMonitorOledMessageLine(0, header);
+
+  const uint8_t firstBodyLine =
+      piMonitorOledPageIndex * PI_MONITOR_OLED_MESSAGE_BODY_LINES;
+  for (uint8_t row = 0; row < PI_MONITOR_OLED_MESSAGE_BODY_LINES; ++row) {
+    const uint8_t wrappedIndex = firstBodyLine + row;
+    drawPiMonitorOledMessageLine(
+        row + 1, wrappedIndex < wrappedLineCount ? wrappedLines[wrappedIndex]
+                                                 : String(""));
+  }
+
+  oledDisplay.sendBuffer();
+  restoreExternalI2cBusClock();
 }
 
 String oledBatteryLine() {
@@ -98,49 +308,6 @@ String oledMqttLine() {
   }
 
   return piMonitorMqttClient.connected() ? "MQTT: Connected" : "MQTT: Disconnected";
-}
-
-String activePiMonitorTargetForOled() {
-  String target = piMonitorSelectedCommandTarget;
-  target.trim();
-
-  if (target.length() == 0) {
-    target = piMonitorCommandTarget;
-    target.trim();
-  }
-
-  return target.length() > 0 ? target : "none";
-}
-
-String oledPiCommandLine() {
-  String command = piMonitorCommandStatus;
-  command.trim();
-
-  if (command.startsWith("read_now")) {
-    return "Cmd: read_now";
-  }
-
-  if (command.startsWith("set ")) {
-    return "Cmd: " + command.substring(0, 12);
-  }
-
-  if (command.length() == 0 || command == "No command sent.") {
-    return "Cmd: ready";
-  }
-
-  return "Cmd: " + command;
-}
-
-int oledPiDeviceCount() {
-  int count = 0;
-
-  for (int i = 0; i < MAX_PI_MONITOR_DEVICES; ++i) {
-    if (piMonitorDevices[i].active) {
-      ++count;
-    }
-  }
-
-  return count;
 }
 
 String oledTemperatureLine() {
@@ -246,12 +413,17 @@ void buildMainMenuOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
 }
 
 void buildPiMonitorOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
-  lines[0] = "Pi Monitor";
-  lines[1] = oledMqttLine();
-  lines[2] = "Tgt: " + activePiMonitorTargetForOled();
-  lines[3] = oledPiCommandLine();
-  lines[4] = String("Msgs: ") + String(piMonitorMessageCount) + " Dev:" +
-             String(oledPiDeviceCount());
+  lines[0] = "MQTT " + piMonitorOledScopeLabel();
+
+  String messageText = piMonitorLatestOledMessageText();
+  messageText.replace('\r', '\n');
+  messageText.replace('\n', ' ');
+
+  int textOffset = 0;
+  for (uint8_t i = 1; i < OLED_STATUS_LINE_COUNT; ++i) {
+    lines[i] = messageText.substring(textOffset, textOffset + OLED_STATUS_MAX_CHARS);
+    textOffset += OLED_STATUS_MAX_CHARS;
+  }
 }
 
 void buildEnvironmentOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
@@ -480,6 +652,15 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
 
 }  // namespace
 
+void advancePiMonitorOledMessagePage() {
+  if (currentScreen != Screen::PiMonitor) {
+    return;
+  }
+
+  ++piMonitorOledPageIndex;
+  renderOledStatusDashboard();
+}
+
 void showOledTest() {
   renderOledTest();
 }
@@ -498,8 +679,11 @@ void renderOledTest() {
   beginContentDraw();
   contentCanvas.println("OLED proof-of-life");
   contentCanvas.printf("Path: %s\n", oledI2cPathLabel().c_str());
-  contentCanvas.printf("Addr: 0x%02X\n", oledActiveAddress);
+  contentCanvas.printf("Addr: 0x%02X Bus:%luk\n", oledActiveAddress,
+                       static_cast<unsigned long>(currentOledBusFrequency() /
+                                                  1000UL));
   contentCanvas.printf("Status: %s\n", oledStatus.substring(0, 22).c_str());
+  contentCanvas.printf("Scan: %s\n", oledScanSummary.substring(0, 21).c_str());
   contentCanvas.printf("Draws: %lu\n", oledDrawCount);
   contentCanvas.println("OK/R retry");
   contentCanvas.println("Back menu");
@@ -536,16 +720,23 @@ void renderOledStatusDashboard() {
     return;
   }
 
+  if (currentScreen == Screen::PiMonitor) {
+    renderPiMonitorOledMessages();
+    return;
+  }
+
   String lines[OLED_STATUS_LINE_COUNT];
   buildOledDashboardLines(lines);
 
   oledDrawCount++;
   oledDisplay.clearBuffer();
+  setOledBusClock();
   oledDisplay.setFont(u8g2_font_6x10_tf);
   for (uint8_t i = 0; i < OLED_STATUS_LINE_COUNT; ++i) {
     drawOledLine(i, lines[i]);
   }
   oledDisplay.sendBuffer();
+  restoreExternalI2cBusClock();
 }
 
 void setOledStatusLine(const String& line) {
@@ -561,42 +752,58 @@ bool initOledDisplay() {
   oledInitialized = false;
   oledOnline = false;
   oledActiveAddress = 0;
+  oledActiveBusFrequency = 0;
   oledStatus = "Starting...";
+  oledScanSummary = "Scanning...";
 
-  Wire.begin(ENV_I2C_SDA_PIN, ENV_I2C_SCL_PIN, ENV_I2C_FREQUENCY);
-  detectI2cHub();
+  const uint32_t probeFrequencies[] = {OLED_I2C_FAST_FREQUENCY,
+                                       OLED_I2C_FALLBACK_FREQUENCY};
+  for (uint8_t i = 0; i < 2; ++i) {
+    if (tryOledProbeAtFrequency(probeFrequencies[i])) {
+      break;
+    }
+  }
 
-  if (!selectOledI2cPath()) {
-    oledStatus = "PaHub not found";
-    Serial.println("OLED Test: PaHub not found; OLED must be on PaHub channel 1.");
+  if (oledActiveAddress == 0) {
+    if (!i2cHubDetected) {
+      oledStatus = "PaHub not found";
+      oledScanSummary = "No PaHub";
+      Serial.println(
+          "OLED Test: PaHub not found; OLED must be on PaHub channel 1.");
+    } else {
+      oledStatus = "OLED not found";
+      Serial.printf(
+          "OLED Test: no display found at 0x%02X or 0x%02X on PaHub channel %u. %s\n",
+          OLED_I2C_ADDRESS_PRIMARY, OLED_I2C_ADDRESS_SECONDARY,
+          I2C_HUB_OLED_CHANNEL, oledScanSummary.c_str());
+    }
+    restoreExternalI2cBusClock();
     return false;
   }
 
-  if (probeOledAddress(OLED_I2C_ADDRESS_PRIMARY)) {
-    oledActiveAddress = OLED_I2C_ADDRESS_PRIMARY;
-  } else if (probeOledAddress(OLED_I2C_ADDRESS_SECONDARY)) {
-    oledActiveAddress = OLED_I2C_ADDRESS_SECONDARY;
-  } else {
-    oledStatus = "OLED not found";
-    Serial.println("OLED Test: no display found on PaHub channel 1.");
-    return false;
-  }
-
+  Wire.setClock(oledActiveBusFrequency);
   if (!selectOledI2cPath()) {
     oledStatus = "PaHub select failed";
+    oledScanSummary = "PaHub select fail";
+    restoreExternalI2cBusClock();
     return false;
   }
 
   oledDisplay.setI2CAddress(oledActiveAddress << 1);
-  oledDisplay.setBusClock(ENV_I2C_FREQUENCY);
+  oledDisplay.setBusClock(oledActiveBusFrequency);
   oledDisplay.begin();
+  oledDisplay.setBusClock(oledActiveBusFrequency);
 
   oledInitialized = true;
   oledOnline = true;
-  oledStatus = String("Online 0x") + String(oledActiveAddress, HEX);
+  oledStatus = String("Online ") + formatI2cAddress(oledActiveAddress) + " " +
+               String(oledActiveBusFrequency / 1000UL) + "k";
 
-  Serial.printf("OLED Test: SSD1309 online at 0x%02X on PaHub channel %u.\n",
-                oledActiveAddress, I2C_HUB_OLED_CHANNEL);
+  Serial.printf(
+      "OLED Test: SSD1309 online at 0x%02X on PaHub channel %u at %lu kHz.\n",
+      oledActiveAddress, I2C_HUB_OLED_CHANNEL,
+      static_cast<unsigned long>(oledActiveBusFrequency / 1000UL));
+  restoreExternalI2cBusClock();
   return true;
 }
 
@@ -617,8 +824,7 @@ bool probeOledAddress(uint8_t address) {
     return false;
   }
 
-  Wire.beginTransmission(address);
-  return Wire.endTransmission() == 0;
+  return probeSelectedI2cAddress(address);
 }
 
 void drawOledTestPattern() {
@@ -631,6 +837,7 @@ void drawOledTestPattern() {
     oledStatus = "PaHub select failed";
     return;
   }
+  setOledBusClock();
 
   oledDrawCount++;
 
@@ -648,4 +855,5 @@ void drawOledTestPattern() {
   oledDisplay.drawFrame(0, 0, 128, 64);
   oledDisplay.drawBox(markerX, 52, 10, 6);
   oledDisplay.sendBuffer();
+  restoreExternalI2cBusClock();
 }

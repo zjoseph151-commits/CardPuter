@@ -26,7 +26,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/power_screen.cpp`: Battery/System screens and battery trend logic.
 - `src/wifi_connect.cpp`: SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - `src/wifi_screens.cpp`: Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
-- `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, compact device monitor screen, Cardputer status/availability publisher, target selection, and whitelisted `read_now` / `set_interval` command publishing.
+- `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, project list / command list UI, Cardputer status/availability publisher, target selection, scoped MQTT message history, and whitelisted `read_now` / `set_interval` command publishing.
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
 - `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
@@ -86,7 +86,7 @@ Feature-specific keys:
 - WiFi Scan: `R` rescans, OK saves selected network name
 - Saved WiFi: `D` deletes selected saved SSID after confirmation
 - WiFi Connect: OK retries connection, `D` disconnects
-- Pi Monitor: OK retries MQTT connection, `C` publishes whitelisted `read_now`, `T` cycles command targets, `I` cycles fixed intervals, `S` publishes whitelisted `set_interval`, `R` clears the device list and reconnects, `D` disconnects MQTT
+- Pi Monitor: arrows scroll the project list or command list, OK opens the highlighted project or sends the highlighted command, Home / Diagnostics OK retries MQTT, Backspace returns from a Pi Monitor subview to the project list, `C` publishes whitelisted `read_now`, `T` cycles command targets, `I` cycles fixed intervals for the selected `set_interval` command, `S` advances the OLED MQTT message page, `R` clears the device list and reconnects, `D` disconnects MQTT
 - Voice Memos: `R` records/stops, OK plays, `D` deletes after confirmation
 - OLED Test: OK/Enter or `R` retries OLED detection
 - RTC: `N` sets/corrects the DS3231 from NTP local time when Wi-Fi is already connected through WiFi Connect; `S` remains an offline build-time fallback; OK/Enter or `R` retries DS3231 / AT24C32 detection and read on PaHub channel 5
@@ -423,14 +423,16 @@ Current state:
 - The PaHub uses a PCA9548AP I2C mux; project plan keeps the default address `0x70`.
 - First firmware foundation detects the PaHub at `0x70`, selects ENV III on PaHub channel 0, and falls back to direct Grove if the hub is missing.
 - SSD1309 OLED on PaHub channel 1.
-- OLED Test probes `0x3C` and `0x3D`, then draws `Scoober OLED`, the active address, a draw counter, a border, and a moving marker.
+- OLED Test probes `0x3C` and `0x3D`, now retrying at 400 kHz and then 100 kHz without tearing down the shared external I2C bus.
+- OLED Test shows the active address, bus speed, and a short scan summary on the built-in LCD so `OLED not found` can distinguish channel/address misses from a missing PaHub.
 - OK/Enter or `R` retries OLED detection.
 - User confirmed OLED Test works great on Cardputer hardware on 2026-08-15.
 - `src/oled_test.cpp` centralizes U8g2 drawing for both the OLED Status Dashboard and OLED Test diagnostics.
 - `serviceOledStatusDashboard()` refreshes the OLED about once per second from `loop()`.
-- `renderOledStatusDashboard()` builds five clipped lines for the active feature.
+- `renderOledStatusDashboard()` builds five clipped lines for most active features.
 - `setOledStatusLine(...)` exists so features can provide a short optional context line later without knowing U8g2 details.
-- The dashboard shows current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and feature context for Main Menu, Pi Monitor, Environment, Voice Memos, and Level.
+- The dashboard shows current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and feature context for Main Menu, Environment, Voice Memos, and Level.
+- In Pi Monitor, the OLED switches to a message-only 5x7 font view with one header and manually paged MQTT text: selected project messages in a project command view and all MQTT messages in Home / Diagnostics.
 - User confirmed the OLED Status Dashboard works across tested features on 2026-08-22.
 - Priority #7 is complete enough. Continue OLED work under Priority #8.
 
@@ -609,7 +611,10 @@ mqtt_host=10.0.0.180
 mqtt_port=1883
 device_id=scoober-cardputer
 command_target=esp32-c3-test
+project=esp32-c3-test|ESP32-C3 Test|basic
 ```
+
+`command_target` remains compatible as the initial/default command target. Add one `project=id|Label|profile` line per MQTT project; the first firmware profile is `basic`, with `read_now` and fixed-choice `set_interval`.
 
 Current Pi Monitor firmware behavior:
 
@@ -622,14 +627,18 @@ Current Pi Monitor firmware behavior:
 - Publishes retained Cardputer status JSON to `home/devices/scoober-cardputer/status` after MQTT connect and about once per minute while Pi Monitor is open.
 - Uses an MQTT last-will so unexpected disconnects can mark Cardputer availability as `offline`.
 - User confirmed status/availability publishing works on Cardputer hardware on 2026-08-15.
-- Shows MQTT connection status, broker, message count, last topic/payload, command response display, and a compact device list.
+- Opens on an LCD project list with `Home / Diagnostics`, configured projects, and discovered device IDs.
+- Selecting a project opens an LCD command list for that project's command profile.
+- Home / Diagnostics keeps broker/device diagnostics on the LCD and shows one header plus manually paged all-message MQTT text on the OLED.
+- A selected project keeps command selection on the LCD and shows one header plus manually paged project-filtered MQTT text on the OLED.
+- Shows MQTT connection status, broker, message count, last topic/payload, command response display, and compact project/device status.
 - Treats `home/devices/<device>/<kind>` topics as structured device-list updates.
 - Shows `home/devices/<device>/responses`, nested response topics, or post-command updates from `command_target` on a dedicated `Resp:` line.
 - User reported on 2026-08-06 that `Resp:` still stayed on `waiting`; use `Last` / `Pay` as the reliable command-feedback view unless explicit acknowledgments become important.
-- Stores up to `MAX_PI_MONITOR_DEVICES = 6` devices and displays up to `PI_MONITOR_VISIBLE_DEVICES = 1` with the command status line visible.
+- Stores up to `MAX_PI_MONITOR_DEVICES = 6` devices, up to `MAX_PI_MONITOR_PROJECTS = 8` configured projects, and up to `MAX_PI_MONITOR_MESSAGES = 8` recent MQTT messages for OLED filtering. MQTT message history keeps longer topic/payload text for the Pi Monitor OLED viewer.
 - Fails gracefully when Wi-Fi, SD config, or broker connection is missing.
-- Backspace returns to the menu and stops the MQTT connection.
-- OK retries MQTT connection.
+- Backspace returns from a Pi Monitor subview to the project list, then returns to the menu and stops the MQTT connection.
+- OK opens the highlighted project or sends the highlighted command; in Home / Diagnostics, OK retries MQTT connection.
 - `C` publishes `{"command":"read_now"}` to `home/devices/<command_target>/commands`.
 - `T` cycles the command target through `command_target` and discovered device IDs, excluding the Cardputer's own MQTT identity.
 - `I` cycles fixed `set_interval` choices: 10, 30, 60, and 300 seconds.
