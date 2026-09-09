@@ -60,6 +60,13 @@ constexpr int PI_MONITOR_SET_INTERVAL_OPTION_COUNT = 4;
 constexpr uint16_t PI_MONITOR_SET_INTERVAL_OPTIONS_SECONDS[PI_MONITOR_SET_INTERVAL_OPTION_COUNT] = {
     10, 30, 60, 300};
 constexpr const char* PI_MONITOR_READ_NOW_PAYLOAD = "{\"command\":\"read_now\"}";
+constexpr int SD_MANAGER_MAX_ENTRIES = 24;
+constexpr int SD_MANAGER_VISIBLE_ROWS = 5;
+constexpr size_t SD_MANAGER_TEXT_MAX_BYTES = 2048;
+constexpr int SD_MANAGER_CONFIG_MAX_LINES = 24;
+constexpr int SD_MANAGER_CONFIG_VISIBLE_ROWS = 5;
+constexpr int SD_MANAGER_CONFIG_VALUE_MAX_LENGTH = 96;
+constexpr int SD_MANAGER_NAME_MAX_LENGTH = 24;
 constexpr int SD_SPI_SCK_PIN = 40;
 constexpr int SD_SPI_MISO_PIN = 39;
 constexpr int SD_SPI_MOSI_PIN = 14;
@@ -102,6 +109,16 @@ constexpr uint32_t RETURN_HOME_SERVICE_INTERVAL_MS = 200;
 constexpr uint32_t RETURN_HOME_RENDER_INTERVAL_MS = 1000;
 constexpr float RETURN_HOME_ARRIVAL_RADIUS_METERS = 10.0f;
 constexpr const char* RETURN_HOME_PREF_NAMESPACE = "scoober_home";
+constexpr uint32_t BREADCRUMB_LOGGER_SERVICE_INTERVAL_MS = 200;
+constexpr uint32_t BREADCRUMB_LOGGER_RENDER_INTERVAL_MS = 1000;
+constexpr uint32_t BREADCRUMB_LOG_SAMPLE_INTERVAL_MS = 5000;
+constexpr const char* BREADCRUMB_LOG_DIR = "/tracks";
+constexpr const char* BREADCRUMB_LOG_HEADER =
+    "uptime_s,utc,date,latitude,longitude,satellites,hdop,speed_kmph,altitude_m";
+constexpr uint32_t LORA_PACKET_MONITOR_SERVICE_INTERVAL_MS = 100;
+constexpr uint32_t LORA_PACKET_MONITOR_RENDER_INTERVAL_MS = 1000;
+constexpr uint16_t LORA_PACKET_MONITOR_PAYLOAD_MAX_CHARS = 64;
+constexpr const char* LORA_PACKET_MONITOR_NO_TX_NOTICE = "RX only. No TX.";
 constexpr int ENV_I2C_SDA_PIN = 2;
 constexpr int ENV_I2C_SCL_PIN = 1;
 constexpr uint32_t ENV_I2C_FREQUENCY = 400000U;
@@ -181,6 +198,7 @@ enum class Screen {
   SavedWifiDeleteResult,
   WifiConnect,
   PiMonitor,
+  SdManager,
   VoiceMemos,
   VoiceMemoDeleteConfirm,
   VoiceMemoDeleteResult,
@@ -191,6 +209,8 @@ enum class Screen {
   GnssDashboard,
   GnssSkyView,
   ReturnHome,
+  BreadcrumbLogger,
+  LoraPacketMonitor,
   LoraDiag,
   LevelTool,
 };
@@ -263,6 +283,37 @@ struct PiMonitorMessage {
   uint32_t sequence = 0;
 };
 
+enum class SdManagerView {
+  FolderList,
+  CardInfo,
+  FileList,
+  FileView,
+  ConfigEdit,
+  CreateName,
+  CreateConfirm,
+  CreateResult,
+  RenameName,
+  RenameConfirm,
+  RenameResult,
+  DeleteConfirm,
+  DeleteResult,
+};
+
+struct SdManagerEntry {
+  bool active = false;
+  bool directory = false;
+  String name;
+  String path;
+  uint32_t size = 0;
+};
+
+struct SdManagerConfigLine {
+  bool editable = false;
+  String key;
+  String value;
+  String raw;
+};
+
 struct GnssSkySatellite {
   bool active = false;
   char constellation = '?';
@@ -324,6 +375,12 @@ extern unsigned long lastGnssSkyViewRenderMs;
 extern unsigned long lastGnssSkyGsvMs;
 extern unsigned long lastReturnHomeServiceMs;
 extern unsigned long lastReturnHomeRenderMs;
+extern unsigned long lastBreadcrumbLoggerServiceMs;
+extern unsigned long lastBreadcrumbLoggerRenderMs;
+extern unsigned long lastBreadcrumbLogSampleMs;
+extern unsigned long lastLoraPacketMonitorServiceMs;
+extern unsigned long lastLoraPacketMonitorRenderMs;
+extern unsigned long loraPacketMonitorLastPacketMs;
 extern M5Canvas contentCanvas;
 extern bool contentCanvasReady;
 extern BatteryTrend batteryTrend;
@@ -364,6 +421,16 @@ extern unsigned long piMonitorLastStatusPublishMs;
 extern bool piMonitorConfigLoaded;
 extern String piMonitorLastTopic;
 extern String piMonitorLastPayload;
+extern String sdManagerStatus;
+extern String sdManagerCurrentFolder;
+extern String sdManagerSelectedPath;
+extern String sdManagerSelectedName;
+extern String sdManagerTextBuffer;
+extern String sdManagerEditInput;
+extern String sdManagerPendingName;
+extern String sdManagerPendingPath;
+extern String sdManagerResultMessage;
+extern String sdManagerCardType;
 extern uint32_t piMonitorMessageCount;
 extern PiMonitorDevice piMonitorDevices[MAX_PI_MONITOR_DEVICES];
 extern PiMonitorView piMonitorView;
@@ -375,6 +442,20 @@ extern int selectedPiMonitorCommandIndex;
 extern int piMonitorCommandScrollOffset;
 extern int piMonitorMessageWriteIndex;
 extern uint32_t piMonitorStoredMessageCount;
+extern SdManagerEntry sdManagerEntries[SD_MANAGER_MAX_ENTRIES];
+extern SdManagerConfigLine sdManagerConfigLines[SD_MANAGER_CONFIG_MAX_LINES];
+extern SdManagerView sdManagerView;
+extern int selectedSdManagerFolderIndex;
+extern int sdManagerEntryCount;
+extern int selectedSdManagerEntryIndex;
+extern int sdManagerEntryScrollOffset;
+extern int selectedSdManagerConfigIndex;
+extern int sdManagerConfigScrollOffset;
+extern int sdManagerTextScrollOffset;
+extern int sdManagerConfigLineCount;
+extern uint64_t sdManagerCardSizeBytes;
+extern uint64_t sdManagerCardUsedBytes;
+extern int sdManagerKnownFolderCount;
 extern VoiceMemoFile voiceMemos[MAX_VOICE_MEMOS];
 extern int voiceMemoCount;
 extern int selectedVoiceMemoIndex;
@@ -418,8 +499,19 @@ extern bool returnHomeInitialized;
 extern bool returnHomeWaypointValid;
 extern bool returnHomeNavigationValid;
 extern bool envLogging;
+extern bool breadcrumbLoggerInitialized;
+extern bool breadcrumbLogging;
+extern bool loraPacketMonitorInitialized;
+extern bool loraPacketMonitorIoExpanderDetected;
+extern bool loraPacketMonitorRfSwitchEnabled;
+extern bool loraPacketMonitorRadioReady;
+extern bool loraPacketMonitorListening;
+extern bool loraPacketMonitorHasInstantRssi;
+extern bool sdManagerSdAvailable;
+extern bool sdManagerConfigEditingValue;
 extern File voiceMemoFile;
 extern File envLogFile;
+extern File breadcrumbLogFile;
 extern String voiceMemoStatus;
 extern String activeVoiceMemoName;
 extern String activeVoiceMemoPath;
@@ -437,6 +529,11 @@ extern String loraStatus;
 extern String loraRadioStatus;
 extern String loraGnssStatus;
 extern String returnHomeStatus;
+extern String breadcrumbLogStatus;
+extern String breadcrumbLogFileName;
+extern String breadcrumbLogFilePath;
+extern String loraPacketMonitorStatus;
+extern String loraPacketMonitorLastPayload;
 extern String loraLastPacket;
 extern String loraLastNmeaLine;
 extern String envLogStatus;
@@ -458,6 +555,7 @@ extern int lastVbusVoltageMv;
 extern int lastBatteryCurrentMa;
 extern int i2cHubActiveChannel;
 extern int loraRadioState;
+extern int loraPacketMonitorRadioState;
 extern int sharedSpiOwner;
 extern int selectedGnssSkySatelliteIndex;
 extern uint8_t oledActiveAddress;
@@ -476,6 +574,9 @@ extern float envPressureHpa;
 extern float rtcTemperatureC;
 extern float loraLastRssi;
 extern float loraLastSnr;
+extern float loraPacketMonitorLastRssi;
+extern float loraPacketMonitorLastSnr;
+extern float loraPacketMonitorInstantRssi;
 extern double loraGnssLatitude;
 extern double loraGnssLongitude;
 extern double returnHomeLatitude;
@@ -495,11 +596,17 @@ extern uint32_t loraGnssPassedChecksum;
 extern uint32_t loraGnssFailedChecksum;
 extern uint32_t loraGnssFixAgeMs;
 extern uint32_t loraGnssSatellites;
+extern uint32_t breadcrumbLogSampleCount;
+extern uint32_t breadcrumbLogMissedFixCount;
+extern uint32_t loraPacketMonitorPacketCount;
+extern uint32_t loraPacketMonitorCrcErrorCount;
+extern uint32_t loraPacketMonitorReceiveErrorCount;
 extern uint32_t rtcReadAttemptCount;
 extern uint32_t gnssSkySatelliteCount;
 extern uint32_t gnssSkySatellitesInView;
 extern uint32_t gnssSkyGsvSentenceCount;
 extern uint16_t loraGnssYear;
+extern uint16_t loraPacketMonitorLastPacketLength;
 extern uint16_t rtcYear;
 extern uint8_t loraGnssMonth;
 extern uint8_t loraGnssDay;
@@ -523,6 +630,15 @@ void showWifiConnect();
 void renderWifiConnect();
 void showPiMonitor();
 void renderPiMonitor();
+void showSdManager();
+void renderSdManager();
+bool initSdManagerSd();
+void scanSdManagerFolder();
+void moveSdManagerSelection(int direction);
+void enterSdManagerSelection();
+bool returnSdManagerView();
+bool handleSdManagerBackKey();
+void handleSdManagerKey(const Keyboard_Class::KeysState& keys);
 void showVoiceMemos();
 void renderVoiceMemos();
 void renderVoiceMemoDeleteConfirm();
@@ -576,6 +692,25 @@ bool clearReturnHomeWaypoint();
 void updateReturnHomeNavigation();
 String returnHomeDistanceText();
 String returnHomeBearingText();
+void showBreadcrumbLogger();
+void renderBreadcrumbLogger();
+bool initBreadcrumbLogger();
+void serviceBreadcrumbLogger();
+void resetBreadcrumbLogger();
+void stopBreadcrumbLogger();
+bool initBreadcrumbLogSd();
+bool findNextBreadcrumbLogPath(String& path, String& name);
+bool startBreadcrumbLogging();
+void stopBreadcrumbLogging(const char* message);
+void toggleBreadcrumbLogging();
+void appendBreadcrumbLogSample();
+void showLoraPacketMonitor();
+void renderLoraPacketMonitor();
+bool initLoraPacketMonitor();
+void serviceLoraPacketMonitor();
+void resetLoraPacketMonitor();
+void stopLoraPacketMonitor();
+void clearLoraPacketMonitor();
 bool loraGnssHasFreshFix();
 String loraGnssSatellitesText();
 String loraGnssHdopText();

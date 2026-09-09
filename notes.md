@@ -27,6 +27,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/wifi_connect.cpp`: SD-backed Wi-Fi credential reading and connect/disconnect screen.
 - `src/wifi_screens.cpp`: Wi-Fi scan, saved SSID list, save/delete flows, and Preferences storage.
 - `src/pi_monitor.cpp`: SD-backed Raspberry Pi MQTT config, MQTT subscriptions, project list / command list UI, Cardputer status/availability publisher, target selection, scoped MQTT message history, and whitelisted `read_now` / `set_interval` command publishing.
+- `src/sd_manager.cpp`: SD Manager for fixed-folder microSD browsing, guarded config editing, config template creation, SD card info, and confirmed create/rename/delete operations.
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
 - `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
@@ -35,6 +36,8 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/gnss_dashboard.cpp`: `GNSS Dash` Priority #11 screen showing parsed GNSS details without starting the LoRa radio.
 - `src/gnss_sky_view.cpp`: `GNSS Sky` Priority #11 screen drawing GSV satellite elevation/azimuth/SNR data and selected satellite highlighting.
 - `src/return_home.cpp`: `Return Home` Priority #11 screen saving one home waypoint and showing GNSS distance/bearing back to it without starting the LoRa radio.
+- `src/breadcrumb_logger.cpp`: `Breadcrumbs` Priority #11 screen writing fresh GNSS fixes to `/tracks/trackNNN.csv` on microSD without starting the LoRa radio.
+- `src/lora_packet_monitor.cpp`: `LoRa Packets` Priority #11 RX-only packet viewer for the SX1262 using RadioLib and the known Cap LoRa settings.
 - `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus shared ATGM336H GNSS parsing.
 - `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
@@ -51,6 +54,7 @@ The active menu is defined in `MENU_ITEMS`:
 {"Saved WiFi", Screen::SavedWifi}
 {"WiFi Connect", Screen::WifiConnect}
 {"Pi Monitor", Screen::PiMonitor}
+{"SD Manager", Screen::SdManager}
 {"Voice Memos", Screen::VoiceMemos}
 {"Environment", Screen::Environment}
 {"OLED Test", Screen::OledTest}
@@ -58,6 +62,8 @@ The active menu is defined in `MENU_ITEMS`:
 {"GNSS Dash", Screen::GnssDashboard}
 {"GNSS Sky", Screen::GnssSkyView}
 {"Return Home", Screen::ReturnHome}
+{"Breadcrumbs", Screen::BreadcrumbLogger}
+{"LoRa Packets", Screen::LoraPacketMonitor}
 {"LoRa Diag", Screen::LoraDiag}
 {"Level", Screen::LevelTool}
 ```
@@ -93,6 +99,8 @@ Feature-specific keys:
 - GNSS Dash: OK/Enter or `R` restarts the shared GNSS parser
 - GNSS Sky: arrow keys cycle the selected satellite through active plotted satellites; OK/Enter or `R` restarts the shared GNSS parser
 - Return Home: `S` saves/updates the current fresh GNSS fix as the saved home point, `D` clears the saved home point, OK/Enter or `R` restarts the shared GNSS parser
+- Breadcrumbs: `S` starts/stops CSV track logging to `/tracks/trackNNN.csv`; OK/Enter or `R` restarts the shared GNSS parser and closes any active log
+- LoRa Packets: `C` clears packet counters/payload preview; OK/Enter or `R` restarts the RX-only packet viewer
 - LoRa Diag: OK/Enter or `R` restarts Cap LoRa-1262 diagnostics
 
 Do not re-add the old footer text inside every feature. The user asked to remove it.
@@ -434,6 +442,7 @@ Current state:
 - The dashboard shows current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and feature context for Main Menu, Environment, Voice Memos, and Level.
 - In Pi Monitor, the OLED switches to a message-only 5x7 font view with one header and manually paged MQTT text: selected project messages in a project command view and all MQTT messages in Home / Diagnostics.
 - User confirmed the OLED Status Dashboard works across tested features on 2026-08-22.
+- User confirmed a later OLED `not found` issue was resolved by replacing the Grove cable on 2026-09-05.
 - Priority #7 is complete enough. Continue OLED work under Priority #8.
 
 Future OLED guidance:
@@ -515,7 +524,7 @@ Cap LoRa-1262 documented pin map:
 Shared conflict notes:
 
 - SX1262 LoRa and microSD share SPI signal pins `G40/G39/G14`; chip selects are separate (`G5 NSS` for LoRa, `G12 CS` for microSD).
-- `LoRa Diag` deselects microSD before SX1262 init and only services the SX1262 radio while the LoRa diagnostics screen is active; the shared GNSS parser is also used by `GNSS Dash`.
+- `LoRa Diag` and `LoRa Packets` deselect microSD before SX1262 init and only service the SX1262 radio while their RX-only screens are active; the shared GNSS parser is used by `GNSS Dash`, `GNSS Sky`, `Return Home`, and `Breadcrumbs`.
 - SD-backed features call `prepareSharedSpiForSd()` so LoRa `NSS` is high and SPI is re-begun for microSD after LoRa has owned the bus.
 - A small `sharedSpiOwner` flag prevents unnecessary SPI resets while a feature is already using the SD path, but forces a clean handoff after LoRa.
 - Keep G8/G9 free for the internal Cardputer/cap I2C path; do not use them directly for OLED or ENV III.
@@ -554,8 +563,29 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - No transmit behavior is enabled.
 - Guard: `tools/check_return_home.py`.
 - User confirmed `Return Home` is working great on hardware on 2026-08-29.
-- Priority #11 is parked for now while Priority #9 RTC work proceeds.
-- Next recommended Priority #11 feature when we return: Breadcrumb Logger or LoRa Packet Monitor, depending on whether location logging or RX radio work feels more useful next.
+- Fourth milestone added: `Breadcrumbs`, the Breadcrumb Logger first pass.
+- `Breadcrumbs` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus for LoRa, or transmit.
+- `S` starts/stops CSV logging to microSD under `/tracks/trackNNN.csv`.
+- Each log writes `BREADCRUMB_LOG_HEADER`, then appends fresh GNSS fixes every `BREADCRUMB_LOG_SAMPLE_INTERVAL_MS = 5000`.
+- Breadcrumb rows contain uptime seconds, UTC, date, latitude, longitude, satellites, HDOP, speed, and altitude.
+- Stale/no-fix samples are skipped and counted as missed fixes instead of writing bad coordinates.
+- Files are flushed after each row and closed when leaving the screen, pressing OK/Enter or `R`, or stopping the log.
+- SSD1309 OLED dashboard has compact Breadcrumb Logger lines for log state, fix state, point count, missed fixes, and controls.
+- No transmit behavior is enabled.
+- Guard: `tools/check_breadcrumb_logger.py`.
+- Fifth milestone added: `LoRa Packets`, the LoRa Packet Monitor first pass.
+- `LoRa Packets` initializes SX1262 with the same known-good RX settings as `LoRa Diag`.
+- It detects the PI4IOE5V6408 cap expander and drives P0 high for the RF switch.
+- It is an RX-only packet viewer for matching LoRa settings and has no transmit action.
+- Built-in LCD shows packet count, CRC mismatch count, receive error count, payload preview, payload length, age, RSSI, SNR, frequency, spreading factor, and bandwidth.
+- Before a packet is decoded, RSSI is shown as channel/noise RSSI; packet count, packet SNR, payload length, age, and payload preview stay in the no-packet state until matching LoRa frames arrive.
+- Payload previews are sanitized/clipped to `LORA_PACKET_MONITOR_PAYLOAD_MAX_CHARS = 64`.
+- `C` clears packet counters and payload preview; OK/Enter or `R` restarts the RX-only monitor.
+- SSD1309 OLED dashboard has compact LoRa Packet Monitor lines for radio status, counts, RSSI/SNR, payload preview, and `RX only. No TX.`.
+- No transmit behavior is enabled.
+- Guard: `tools/check_lora_packet_monitor.py`.
+- User reported on 2026-09-09 that `Breadcrumbs` works fine on hardware.
+- User reported on 2026-09-09 that `LoRa Packets` shows idle channel/noise RSSI while `Pk`, CRC, Err, SNR, Len, Age, and payload remain unchanged; this is expected until a matching LoRa packet is decoded.
 
 ## ESP-NOW And RC Notes
 
@@ -642,7 +672,8 @@ Current Pi Monitor firmware behavior:
 - `C` publishes `{"command":"read_now"}` to `home/devices/<command_target>/commands`.
 - `T` cycles the command target through `command_target` and discovered device IDs, excluding the Cardputer's own MQTT identity.
 - `I` cycles fixed `set_interval` choices: 10, 30, 60, and 300 seconds.
-- `S` publishes `{"command":"set_interval","seconds":<selected>}` to `home/devices/<command_target>/commands`.
+- `S` advances the OLED MQTT message page.
+- User confirmed the project/command UI and manual `S` OLED MQTT message paging work on Cardputer hardware on 2026-09-05.
 - `R` clears the device list and reconnects.
 - `D` disconnects MQTT.
 - Does not publish arbitrary command text, shell commands, or Raspberry Pi admin actions.
@@ -673,6 +704,7 @@ Run all guards:
 
 ```sh
 python tools/check_battery_trend.py
+python tools/check_breadcrumb_logger.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
 python tools/check_external_display_revisit.py
@@ -680,6 +712,7 @@ python tools/check_level_tool.py
 python tools/check_lora_cap_diag.py
 python tools/check_lora_gnss_dashboard.py
 python tools/check_lora_gnss_sky_view.py
+python tools/check_lora_packet_monitor.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
@@ -688,6 +721,7 @@ python tools/check_pi_command_center_plan.py
 python tools/check_power_status.py
 python tools/check_return_home.py
 python tools/check_rtc_status.py
+python tools/check_sd_manager.py
 python tools/check_saved_wifi.py
 python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py

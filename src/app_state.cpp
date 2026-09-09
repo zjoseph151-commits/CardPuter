@@ -7,6 +7,7 @@ const MenuItem MENU_ITEMS[] = {
     {"Saved WiFi", Screen::SavedWifi},
     {"WiFi Connect", Screen::WifiConnect},
     {"Pi Monitor", Screen::PiMonitor},
+    {"SD Manager", Screen::SdManager},
     {"Voice Memos", Screen::VoiceMemos},
     {"Environment", Screen::Environment},
     {"OLED Test", Screen::OledTest},
@@ -14,6 +15,8 @@ const MenuItem MENU_ITEMS[] = {
     {"GNSS Dash", Screen::GnssDashboard},
     {"GNSS Sky", Screen::GnssSkyView},
     {"Return Home", Screen::ReturnHome},
+    {"Breadcrumbs", Screen::BreadcrumbLogger},
+    {"LoRa Packets", Screen::LoraPacketMonitor},
     {"LoRa Diag", Screen::LoraDiag},
     {"Level", Screen::LevelTool},
 };
@@ -45,6 +48,12 @@ unsigned long lastGnssSkyViewRenderMs = 0;
 unsigned long lastGnssSkyGsvMs = 0;
 unsigned long lastReturnHomeServiceMs = 0;
 unsigned long lastReturnHomeRenderMs = 0;
+unsigned long lastBreadcrumbLoggerServiceMs = 0;
+unsigned long lastBreadcrumbLoggerRenderMs = 0;
+unsigned long lastBreadcrumbLogSampleMs = 0;
+unsigned long lastLoraPacketMonitorServiceMs = 0;
+unsigned long lastLoraPacketMonitorRenderMs = 0;
+unsigned long loraPacketMonitorLastPacketMs = 0;
 M5Canvas contentCanvas(&M5Cardputer.Display);
 bool contentCanvasReady = false;
 BatteryTrend batteryTrend;
@@ -96,6 +105,20 @@ int selectedPiMonitorCommandIndex = 0;
 int piMonitorCommandScrollOffset = 0;
 int piMonitorMessageWriteIndex = 0;
 uint32_t piMonitorStoredMessageCount = 0;
+SdManagerEntry sdManagerEntries[SD_MANAGER_MAX_ENTRIES];
+SdManagerConfigLine sdManagerConfigLines[SD_MANAGER_CONFIG_MAX_LINES];
+SdManagerView sdManagerView = SdManagerView::FolderList;
+int selectedSdManagerFolderIndex = 0;
+int sdManagerEntryCount = 0;
+int selectedSdManagerEntryIndex = 0;
+int sdManagerEntryScrollOffset = 0;
+int selectedSdManagerConfigIndex = 0;
+int sdManagerConfigScrollOffset = 0;
+int sdManagerTextScrollOffset = 0;
+int sdManagerConfigLineCount = 0;
+uint64_t sdManagerCardSizeBytes = 0;
+uint64_t sdManagerCardUsedBytes = 0;
+int sdManagerKnownFolderCount = 0;
 VoiceMemoFile voiceMemos[MAX_VOICE_MEMOS];
 int voiceMemoCount = 0;
 int selectedVoiceMemoIndex = 0;
@@ -139,8 +162,19 @@ bool returnHomeInitialized = false;
 bool returnHomeWaypointValid = false;
 bool returnHomeNavigationValid = false;
 bool envLogging = false;
+bool breadcrumbLoggerInitialized = false;
+bool breadcrumbLogging = false;
+bool loraPacketMonitorInitialized = false;
+bool loraPacketMonitorIoExpanderDetected = false;
+bool loraPacketMonitorRfSwitchEnabled = false;
+bool loraPacketMonitorRadioReady = false;
+bool loraPacketMonitorListening = false;
+bool loraPacketMonitorHasInstantRssi = false;
+bool sdManagerSdAvailable = false;
+bool sdManagerConfigEditingValue = false;
 File voiceMemoFile;
 File envLogFile;
+File breadcrumbLogFile;
 String voiceMemoStatus;
 String activeVoiceMemoName;
 String activeVoiceMemoPath;
@@ -158,6 +192,21 @@ String loraStatus = "Not initialized.";
 String loraRadioStatus = "Not initialized.";
 String loraGnssStatus = "Not started.";
 String returnHomeStatus = "Not started.";
+String breadcrumbLogStatus = "Not started.";
+String breadcrumbLogFileName;
+String breadcrumbLogFilePath;
+String loraPacketMonitorStatus = "Not initialized.";
+String loraPacketMonitorLastPayload;
+String sdManagerStatus = "Select folder.";
+String sdManagerCurrentFolder;
+String sdManagerSelectedPath;
+String sdManagerSelectedName;
+String sdManagerTextBuffer;
+String sdManagerEditInput;
+String sdManagerPendingName;
+String sdManagerPendingPath;
+String sdManagerResultMessage;
+String sdManagerCardType = "none";
 String loraLastPacket;
 String loraLastNmeaLine;
 String envLogStatus;
@@ -179,6 +228,7 @@ int lastVbusVoltageMv = -1;
 int lastBatteryCurrentMa = 0;
 int i2cHubActiveChannel = -1;
 int loraRadioState = 0;
+int loraPacketMonitorRadioState = 0;
 int sharedSpiOwner = SHARED_SPI_OWNER_NONE;
 int selectedGnssSkySatelliteIndex = -1;
 uint8_t oledActiveAddress = 0;
@@ -197,6 +247,9 @@ float envPressureHpa = 0.0f;
 float rtcTemperatureC = 0.0f;
 float loraLastRssi = 0.0f;
 float loraLastSnr = 0.0f;
+float loraPacketMonitorLastRssi = 0.0f;
+float loraPacketMonitorLastSnr = 0.0f;
+float loraPacketMonitorInstantRssi = 0.0f;
 double loraGnssLatitude = 0.0;
 double loraGnssLongitude = 0.0;
 double returnHomeLatitude = 0.0;
@@ -216,11 +269,17 @@ uint32_t loraGnssPassedChecksum = 0;
 uint32_t loraGnssFailedChecksum = 0;
 uint32_t loraGnssFixAgeMs = 0;
 uint32_t loraGnssSatellites = 0;
+uint32_t breadcrumbLogSampleCount = 0;
+uint32_t breadcrumbLogMissedFixCount = 0;
+uint32_t loraPacketMonitorPacketCount = 0;
+uint32_t loraPacketMonitorCrcErrorCount = 0;
+uint32_t loraPacketMonitorReceiveErrorCount = 0;
 uint32_t rtcReadAttemptCount = 0;
 uint32_t gnssSkySatelliteCount = 0;
 uint32_t gnssSkySatellitesInView = 0;
 uint32_t gnssSkyGsvSentenceCount = 0;
 uint16_t loraGnssYear = 0;
+uint16_t loraPacketMonitorLastPacketLength = 0;
 uint16_t rtcYear = 0;
 uint8_t loraGnssMonth = 0;
 uint8_t loraGnssDay = 0;

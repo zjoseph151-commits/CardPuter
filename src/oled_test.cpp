@@ -27,6 +27,8 @@ String screenTitleForOled() {
       return "WiFi Connect";
     case Screen::PiMonitor:
       return "Pi Monitor";
+    case Screen::SdManager:
+      return "SD Manager";
     case Screen::VoiceMemos:
     case Screen::VoiceMemoDeleteConfirm:
     case Screen::VoiceMemoDeleteResult:
@@ -44,6 +46,10 @@ String screenTitleForOled() {
       return "GNSS Sky";
     case Screen::ReturnHome:
       return "Return Home";
+    case Screen::BreadcrumbLogger:
+      return "Breadcrumbs";
+    case Screen::LoraPacketMonitor:
+      return "LoRa Packets";
     case Screen::LoraDiag:
       return "LoRa Diag";
     case Screen::LevelTool:
@@ -592,6 +598,46 @@ void buildReturnHomeOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
   lines[4] = "S upd D clr";
 }
 
+void buildBreadcrumbLoggerOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  lines[0] = "Breadcrumbs";
+  lines[1] = breadcrumbLogging
+                 ? String("Log: ") + breadcrumbLogFileName
+                 : "Log: stopped";
+  lines[2] = loraGnssHasFreshFix()
+                 ? String("Fix Sat:") + String(loraGnssSatellites)
+                 : loraGnssStatus;
+  lines[3] = breadcrumbLogging
+                 ? String("Pts:") + String(breadcrumbLogSampleCount) +
+                       String(" Miss:") + String(breadcrumbLogMissedFixCount)
+                 : String("Sat:") + loraGnssSatellitesText() +
+                       String(" HD:") + loraGnssHdopText();
+  lines[4] = breadcrumbLogging ? "S stop CSV" : "S start CSV";
+}
+
+void buildLoraPacketMonitorOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  lines[0] = "LoRa Packets";
+  lines[1] = loraPacketMonitorRadioReady
+                 ? (loraPacketMonitorListening ? "Radio: listening"
+                                                : "Radio: ready")
+                 : "Radio: not found";
+  lines[2] = String("Pk:") + String(loraPacketMonitorPacketCount) +
+             String(" CRC:") + String(loraPacketMonitorCrcErrorCount);
+  lines[3] = (loraPacketMonitorPacketCount > 0 ? String("PktR:")
+                                                : String("Noise:")) +
+             (loraPacketMonitorPacketCount > 0
+                  ? String(loraPacketMonitorLastRssi, 1)
+                  : loraPacketMonitorHasInstantRssi
+                        ? String(loraPacketMonitorInstantRssi, 1)
+                        : String("--")) +
+             String(" SNR:") +
+             (loraPacketMonitorPacketCount > 0
+                  ? String(loraPacketMonitorLastSnr, 1)
+                  : String("--"));
+  lines[4] = loraPacketMonitorLastPayload.length() > 0
+                 ? loraPacketMonitorLastPayload
+                 : "Need matching TX";
+}
+
 void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
   buildDefaultOledLines(lines);
 
@@ -634,6 +680,12 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
       break;
     case Screen::ReturnHome:
       buildReturnHomeOledLines(lines);
+      break;
+    case Screen::BreadcrumbLogger:
+      buildBreadcrumbLoggerOledLines(lines);
+      break;
+    case Screen::LoraPacketMonitor:
+      buildLoraPacketMonitorOledLines(lines);
       break;
     case Screen::LevelTool:
       lines[4] = oledLevelLine();

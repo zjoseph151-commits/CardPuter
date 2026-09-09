@@ -12,6 +12,7 @@ def test_scoober_menu_structure():
     assert '"Saved WiFi"' in SOURCE
     assert '"WiFi Connect"' in SOURCE
     assert '"Pi Monitor"' in SOURCE
+    assert '"SD Manager"' in SOURCE
     assert '"Voice Memos"' in SOURCE
     assert '"Environment"' in SOURCE
     assert '"OLED Test"' in SOURCE
@@ -19,6 +20,8 @@ def test_scoober_menu_structure():
     assert '"GNSS Dash"' in SOURCE
     assert '"GNSS Sky"' in SOURCE
     assert '"Return Home"' in SOURCE
+    assert '"Breadcrumbs"' in SOURCE
+    assert '"LoRa Packets"' in SOURCE
     assert '"LoRa Diag"' in SOURCE
     assert '"Level"' in SOURCE
 
@@ -58,6 +61,9 @@ def test_scoober_menu_structure():
     assert "moveMenuSelection(" in SOURCE
     assert "activateSelectedMenuItem()" in SOURCE
     assert "Screen::RtcStatus" in SOURCE
+    assert "Screen::SdManager" in SOURCE
+    assert "Screen::BreadcrumbLogger" in SOURCE
+    assert "Screen::LoraPacketMonitor" in SOURCE
     assert "key == ';'" in SOURCE
     assert "key == '.'" in SOURCE
     assert "keys.enter" in SOURCE

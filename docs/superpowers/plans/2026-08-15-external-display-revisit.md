@@ -25,7 +25,7 @@ User confirmed the OLED Test proof-of-life works on Cardputer hardware on 2026-0
 
 The next approved step is an OLED Status Dashboard foundation: the built-in LCD remains the main control screen, while the SSD1309 OLED becomes a small glance/status display on PaHub channel 1.
 
-User confirmed the OLED Status Dashboard and Environment-after-dashboard behavior are working on 2026-08-22. Priority #7 is complete enough; future OLED refinements belong under Priority #8.
+User confirmed the OLED Status Dashboard and Environment-after-dashboard behavior are working on 2026-08-22. A later OLED `not found` issue was traced to a bad Grove cable and resolved on 2026-09-05. Priority #7 is complete enough; future OLED refinements belong under Priority #8.
 
 Chosen path: M5Stack Unit PaHub v2.1.
 
@@ -117,4 +117,4 @@ Priority #7 OLED Status Dashboard foundation is complete enough when:
 - Keyboard navigation still works with both modules connected.
 - ENV III still works on PaHub channel 0 after OLED dashboard updates.
 
-Result: complete enough on 2026-08-22 based on user hardware testing.
+Result: complete enough on 2026-08-22 based on user hardware testing. OLED `not found` resurfaced later, but was resolved by replacing the Grove cable on 2026-09-05.

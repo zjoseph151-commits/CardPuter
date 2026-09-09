@@ -27,6 +27,9 @@ void handleKeyboard() {
     } else if (currentScreen == Screen::Environment && envLogging) {
       stopEnvironmentLogging("Log stopped.");
       setScreen(Screen::MainMenu);
+    } else if (currentScreen == Screen::SdManager &&
+               handleSdManagerBackKey()) {
+      return;
     } else if (currentScreen == Screen::PiMonitor &&
                returnPiMonitorProjectList()) {
       return;
@@ -134,6 +137,8 @@ void handleKeyboard() {
     if (keys.enter) {
       enterPiMonitorSelection();
     }
+  } else if (currentScreen == Screen::SdManager) {
+    handleSdManagerKey(keys);
   } else if (currentScreen == Screen::VoiceMemos) {
     if (voiceMemoRecording) {
       for (char key : keys.word) {
@@ -329,6 +334,46 @@ void handleKeyboard() {
       showReturnHome();
     } else if (changed) {
       renderReturnHome();
+      renderOledStatusDashboard();
+    }
+  } else if (currentScreen == Screen::BreadcrumbLogger) {
+    bool reset = keys.enter;
+    bool changed = false;
+
+    for (char key : keys.word) {
+      if (key == 's' || key == 'S') {
+        toggleBreadcrumbLogging();
+        changed = true;
+      } else if (key == 'r' || key == 'R') {
+        reset = true;
+      }
+    }
+
+    if (reset) {
+      stopBreadcrumbLogger();
+      showBreadcrumbLogger();
+    } else if (changed) {
+      renderBreadcrumbLogger();
+      renderOledStatusDashboard();
+    }
+  } else if (currentScreen == Screen::LoraPacketMonitor) {
+    bool reset = keys.enter;
+    bool changed = false;
+
+    for (char key : keys.word) {
+      if (key == 'r' || key == 'R') {
+        reset = true;
+      } else if (key == 'c' || key == 'C') {
+        clearLoraPacketMonitor();
+        changed = true;
+      }
+    }
+
+    if (reset) {
+      stopLoraPacketMonitor();
+      showLoraPacketMonitor();
+    } else if (changed) {
+      renderLoraPacketMonitor();
       renderOledStatusDashboard();
     }
   }

@@ -87,6 +87,14 @@ void loop() {
     serviceReturnHome();
   }
 
+  if (currentScreen == Screen::BreadcrumbLogger) {
+    serviceBreadcrumbLogger();
+  }
+
+  if (currentScreen == Screen::LoraPacketMonitor) {
+    serviceLoraPacketMonitor();
+  }
+
   serviceOledStatusDashboard();
 
   delay(10);

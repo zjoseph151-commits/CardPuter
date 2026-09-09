@@ -17,6 +17,14 @@ void setScreen(Screen screen) {
   if (currentScreen == Screen::ReturnHome && screen != Screen::ReturnHome) {
     stopReturnHome();
   }
+  if (currentScreen == Screen::BreadcrumbLogger &&
+      screen != Screen::BreadcrumbLogger) {
+    stopBreadcrumbLogger();
+  }
+  if (currentScreen == Screen::LoraPacketMonitor &&
+      screen != Screen::LoraPacketMonitor) {
+    stopLoraPacketMonitor();
+  }
 
   currentScreen = screen;
   clearOledStatusLine();
@@ -30,6 +38,8 @@ void setScreen(Screen screen) {
   lastGnssDashboardRenderMs = 0;
   lastGnssSkyViewRenderMs = 0;
   lastReturnHomeRenderMs = 0;
+  lastBreadcrumbLoggerRenderMs = 0;
+  lastLoraPacketMonitorRenderMs = 0;
 
   switch (currentScreen) {
     case Screen::MainMenu:
@@ -77,6 +87,10 @@ void setScreen(Screen screen) {
       drawScreenFrame("Pi Monitor (Projects)");
       showPiMonitor();
       break;
+    case Screen::SdManager:
+      drawScreenFrame("SD Manager");
+      showSdManager();
+      break;
     case Screen::VoiceMemos:
       drawScreenFrame("Voice Memos (R record OK play)");
       showVoiceMemos();
@@ -118,6 +132,14 @@ void setScreen(Screen screen) {
     case Screen::ReturnHome:
       drawScreenFrame("Return Home");
       showReturnHome();
+      break;
+    case Screen::BreadcrumbLogger:
+      drawScreenFrame("Breadcrumb Logger");
+      showBreadcrumbLogger();
+      break;
+    case Screen::LoraPacketMonitor:
+      drawScreenFrame("LoRa Packets (RX only)");
+      showLoraPacketMonitor();
       break;
     case Screen::LoraDiag:
       drawScreenFrame("LoRa Diag (RX only)");

@@ -98,6 +98,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Cardputer status/availability publishing confirmed on hardware on 2026-08-15
   - `set_interval` command publishing confirmed on hardware on 2026-08-15
   - target selection confirmed on hardware on 2026-08-15
+  - project/command UI and manual `S` OLED MQTT message paging confirmed on hardware on 2026-09-05
   - `Resp:` still stayed on `waiting` during 2026-08-06 hardware testing; not blocking while `Last` / `Pay` show command feedback
   - missing `/config/pi.txt`, Wi-Fi disconnected, and wrong broker IP/port still worth spot-checking after future edits
 - Do not implement direct shell control, remote command execution, Pi admin actions, arbitrary command entry, or risky commands.
@@ -149,6 +150,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - OLED Status Dashboard across Main Menu, Pi Monitor, Environment, Voice Memos, and the then-active RF Scan: user confirmed everything is working on 2026-08-22
   - Environment after dashboard updates, with both modules attached: user confirmed working on 2026-08-22
   - keyboard navigation while dashboard is refreshing: user confirmed working on 2026-08-22
+  - a later OLED `not found` issue with PaHub still visible was fixed by replacing the Grove cable on 2026-09-05
 - Priority #7 is complete enough. Next OLED work belongs under Priority #8.
 
 ## Priority 8: Customize Each Feature For The External OLED
@@ -304,14 +306,35 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
   - No transmit path is enabled.
   - User confirmed `Return Home` is working great on hardware on 2026-08-29.
-  - Priority #11 is parked for now while Priority #9 RTC work proceeds.
   - Guard: `tools/check_return_home.py`.
+- Fourth milestone added: `Breadcrumbs`, the Breadcrumb Logger first pass.
+  - Uses the same shared Cap LoRa-1262 ATGM336H GNSS UART parser.
+  - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus for LoRa, or transmit.
+  - Starts/stops CSV track logging with `S`.
+  - Creates `/tracks` on microSD and writes `/tracks/trackNNN.csv`.
+  - Writes `BREADCRUMB_LOG_HEADER` and logs fresh GNSS fixes every `BREADCRUMB_LOG_SAMPLE_INTERVAL_MS = 5000`.
+  - Logs uptime seconds, UTC, date, latitude, longitude, satellites, HDOP, speed, and altitude.
+  - Skips stale/no-fix samples and counts missed fixes instead of logging bad coordinates.
+  - Flushes each row after writing and closes the active CSV file on Backspace or reset.
+  - Adds compact Breadcrumb Logger lines to the OLED Status Dashboard.
+  - No transmit path is enabled.
+  - Guard: `tools/check_breadcrumb_logger.py`.
+- Fifth milestone added: `LoRa Packets`, the LoRa Packet Monitor first pass.
+  - Uses RadioLib for the SX1262 LoRa radio and the same RX settings as `LoRa Diag`.
+  - Detects the Cap LoRa-1262 PI4IOE5V6408 I/O expander and enables the P0 antenna switch.
+  - Acts as an RX-only packet viewer for matching LoRa settings.
+  - Shows packet count, CRC mismatch count, receive error count, payload preview, payload length, age, RSSI, SNR, frequency, spreading factor, and bandwidth.
+  - Clips/sanitizes packet payload previews to `LORA_PACKET_MONITOR_PAYLOAD_MAX_CHARS = 64`.
+  - Clears packet counters with `C` and restarts RX with OK/Enter or `R`.
+  - Adds compact LoRa Packet Monitor lines to the OLED Status Dashboard.
+  - No transmit path is enabled.
+  - Guard: `tools/check_lora_packet_monitor.py`.
 - Feature ideas to implement:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26.
   - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected satellite confirmed on hardware on 2026-08-28.
-  - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29 and parked for now.
-  - Breadcrumb Logger: save GPX/CSV track logs to microSD, with optional ENV III readings later.
-  - LoRa Packet Monitor: RX-only packet viewer for matching LoRa settings, including packet count, payload preview, RSSI, SNR, frequency, spreading factor, and bandwidth.
+  - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29.
+  - Breadcrumb Logger: implemented as `Breadcrumbs`; user reported it is working fine on hardware on 2026-09-09.
+  - LoRa Packet Monitor: first RX-only packet-viewer pass implemented as `LoRa Packets`; idle/listening screen observed on hardware, matching-packet decode test pending.
   - LoRa Range Test: with a second LoRa node later, send pings/acks and log RSSI/SNR over distance.
   - Scoober Pager: simple LoRa short-message texting between devices, starting with canned messages.
   - Location Beacon: periodically broadcast device ID, battery, and optional GPS position after transmit guardrails are defined.
@@ -322,20 +345,54 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Recommended implementation order:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26
   - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected satellite confirmed on hardware on 2026-08-28
-  - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29 and parked for now
-  - Breadcrumb Logger
-  - LoRa Packet Monitor
+  - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29
+  - Breadcrumb Logger: implemented as `Breadcrumbs`; user reported it is working fine on hardware on 2026-09-09
+  - LoRa Packet Monitor: first pass implemented as `LoRa Packets`; idle/listening screen observed on hardware, matching-packet decode test pending
   - Remaining transmit-capable features after explicit LoRa TX planning
+- Hardware test checklist for the new Priority #11 pass:
+  - open `Breadcrumbs`, confirm GNSS status updates, and confirm no LoRa radio/cap init is required
+  - press `S` in `Breadcrumbs`, confirm `/tracks/trackNNN.csv` is created on microSD
+  - with a fresh GNSS fix, confirm `Breadcrumbs` saves one row about every 5 seconds and increments point count
+  - block or move away from GNSS, confirm missed-fix count increments instead of logging bad coordinates
+  - leave `Breadcrumbs` with Backspace and confirm the CSV file is readable in `SD Manager` under `/tracks`
+  - open `LoRa Packets`, confirm cap/radio missing states are graceful if hardware is absent
+  - confirm `LoRa Packets` shows channel/noise RSSI while `Pk`, SNR, length, age, and payload remain in the no-packet state before a valid frame arrives
+  - with matching LoRa packets available, confirm packet count, payload preview, RSSI, SNR, and age update
+  - press `C` in `LoRa Packets` and confirm counters/payload clear without adding any transmit behavior
 
 ## Priority 12: SD Manager / Config Editor
 
 - Add an SD card management feature after the Cap LoRa-1262 feature expansion foundation is settled.
+- First safe SD Manager milestone added on 2026-09-06:
+  - adds `SD Manager` to the main menu
+  - uses the shared SD SPI handoff helper before SD access
+  - browse `/config`, `/env`, `/memos`, and `/tracks` from a fixed known-folder list
+  - view small text files up to `SD_MANAGER_TEXT_MAX_BYTES = 2048`
+  - treats `.wav`, large non-CSV text, and unknown binary files as metadata/view/delete-only entries
+  - edits `/config/wifi.txt` and `/config/pi.txt` through a guarded key/value editor
+  - recognizes Wi-Fi and Pi config file names case-insensitively on the SD card, such as `Pi.txt`
+  - preserves Wi-Fi config keys `ssid` and `password`
+  - preserves Pi config keys `mqtt_host`, `mqtt_port`, `device_id`, `command_target`, and repeated `project=id|Label|profile` lines
+  - uses temp-file saves followed by rename, with a backup rename fallback around the original file
+  - flushes and closes files after writes
+  - requires confirmation before create, rename, or delete actions
+  - preserves the original file extension during rename when the new name has no extension
+  - sniffs extensionless `/env` files so renamed CSV logs can still be viewed as text when small enough
+  - blocks SD access while Voice Memos is recording, Environment logging is active, or LoRa diagnostics are actively using the shared EXT SPI path
+  - Guard: `tools/check_sd_manager.py`
+- Priority #12 hardware checklist and polish spot-checks passed on 2026-09-08.
+- Priority #12 polish added on 2026-09-08:
+  - new `I` SD card info view shows mounted state, card type, used/free space, and known-folder count
+  - large CSV files show a capped first-page preview instead of metadata-only
+  - create and rename flows keep the new file selected after folder refresh
+  - `/config` has confirmed `W` and `P` shortcuts for `wifi.txt` and `pi.txt` templates
+- Priority #12 is complete as of 2026-09-08 after hardware verification plus polish.
 - First milestone should be a safe SD Manager, not a full free-form editor:
   - browse known folders such as `/config`, `/env`, and `/memos`
   - view small text files
   - edit key/value config files such as `/config/wifi.txt` and `/config/pi.txt`
   - create, delete, and rename files only with confirmation
-  - treat `.wav`, large `.csv`, and unknown binary files as view/delete only
+  - treat `.wav`, large non-CSV text, and unknown binary files as view/delete only
 - Prefer line-based or key/value editing because the Cardputer screen is small.
 - Use temp-file saves followed by rename so power loss is less likely to corrupt config files.
 - Always flush and close files after writes.
@@ -345,7 +402,18 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - no accidental writes outside explicitly selected SD paths
   - no deletion without confirmation
   - Wi-Fi and Pi config formats remain compatible with existing readers
+  - Guard: `tools/check_sd_manager.py`
   - PlatformIO build must pass
+- Hardware test checklist passed on 2026-09-08:
+  - open `SD Manager` and confirm `/config`, `/env`, and `/memos` are listed
+  - browse each known folder with and without files present
+  - view a small `.txt` or `.csv` file and confirm arrows scroll text
+  - edit `/config/wifi.txt`, save, and confirm WiFi Connect still reads it
+  - edit `/config/pi.txt` or `/config/Pi.txt`, save, and confirm Pi Monitor still reads it
+  - confirm `.wav` files show as view/delete-only metadata
+  - rename an `/env/*.csv` file with a bare name and confirm the `.csv` suffix is preserved
+  - confirm create, rename, and delete each require a second OK confirmation
+  - confirm Backspace steps back through SD Manager views before returning to the menu
 
 ## Done / Historical Milestones
 
@@ -391,7 +459,11 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Started Priority #11 with `GNSS Dash`, a separate no-transmit Cap LoRa-1262 GNSS dashboard that reuses the shared TinyGPSPlus parser and shows fix state, satellites, HDOP, coordinates, speed, altitude, UTC/date, NMEA, checksum, and byte counts.
 - Added `GNSS Sky`, a no-transmit GNSS Satellite Sky View that parses GSV elevation/azimuth/SNR data, plots visible satellites with stale-data expiry, highlights the selected satellite, and shows selected details on the OLED.
 - Added `Return Home`, a no-transmit Waypoint / Return Home screen that stores one saved home point in NVS and shows GNSS distance/bearing back to it.
-- User confirmed `Return Home` is working great on hardware on 2026-08-29, and Priority #11 is parked for now.
+- User confirmed `Return Home` is working great on hardware on 2026-08-29.
+- Resumed Priority #11 with `Breadcrumbs`, a no-transmit GNSS CSV track logger that writes fresh-fix samples to `/tracks/trackNNN.csv` on microSD.
+- Added `LoRa Packets`, an RX-only LoRa Packet Monitor that shows packet count, payload preview, RSSI, SNR, frequency, spreading factor, and bandwidth with no transmit path.
+- User reported on 2026-09-09 that `Breadcrumbs` works fine on hardware.
+- User reported on 2026-09-09 that `LoRa Packets` shows idle channel/noise RSSI with `Pk`, CRC, Err, SNR, Len, Age, and payload unchanged; this is expected until a matching LoRa packet is decoded.
 - Started Priority #9 with `RTC`, a DS3231 / AT24C32 status screen on PaHub channel 5 that reads time/temperature, detects EEPROM presence, sets/corrects from NTP local time with `N`, keeps build-time setting as an offline fallback, and keeps missing RTC behavior graceful while the EEPROM unused boundary remains in place.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.
@@ -405,9 +477,11 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User reported `Resp:` still stayed on `waiting` on 2026-08-06; leave it as non-blocking unless explicit acknowledgments become important.
 - Added Cardputer MQTT status/availability publishing under `home/devices/scoober-cardputer/...`.
 - User confirmed Cardputer MQTT status/availability publishing works on hardware on 2026-08-15.
-- Added fixed-choice Pi Monitor `set_interval` command publisher using `I` to cycle and `S` to send.
+- Added fixed-choice Pi Monitor `set_interval` command publisher, originally using `I` to cycle and `S` to send; the current project/command UI uses OK to send selected commands and reserves `S` for OLED paging.
 - User confirmed Pi Monitor `set_interval` command publishing works on hardware on 2026-08-15.
 - Added Pi Monitor target selection using `T` to cycle configured and discovered devices.
 - User confirmed Pi Monitor target selection works on hardware on 2026-08-15.
 - Expanded Pi Monitor into a project list / command list UI with `Home / Diagnostics`, project-filtered OLED MQTT messages, all-message diagnostics OLED output, and `/config/pi.txt` `project=id|Label|profile` entries while preserving the whitelisted publish boundary.
 - Adjusted Pi Monitor OLED output to a message-only 5x7 view with one header and manual paging through wrapped MQTT topic/payload text using `S`.
+- User confirmed Pi Monitor project/command UI and manual `S` OLED MQTT message paging work on hardware on 2026-09-05.
+- User confirmed the later OLED `not found` issue was resolved by replacing the Grove cable on 2026-09-05.
