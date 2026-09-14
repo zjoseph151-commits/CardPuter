@@ -54,6 +54,9 @@ required_source_tokens = [
     "N NTP EE:",
     "rtcReadAttemptCount",
     "buildRtcStatusOledLines",
+    "buildRtcStatusOledHelpLines",
+    "N set from NTP",
+    "S set build time",
     "rtcDateText()",
     "rtcTimeText()",
 ]

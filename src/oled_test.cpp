@@ -6,6 +6,9 @@ uint32_t lastPiMonitorOledMessageSequence = 0;
 uint8_t piMonitorOledPageIndex = 0;
 String lastPiMonitorOledScope;
 
+constexpr uint8_t OLED_HELP_LINE_COUNT = PI_MONITOR_OLED_MESSAGE_LINE_COUNT;
+constexpr uint8_t OLED_HELP_MAX_CHARS = PI_MONITOR_OLED_MESSAGE_MAX_CHARS;
+
 String screenTitleForOled() {
   switch (currentScreen) {
     case Screen::MainMenu:
@@ -188,6 +191,29 @@ void drawPiMonitorOledMessageLine(uint8_t row, const String& text) {
   const uint8_t y = 7 + (row * 8);
   oledDisplay.drawStr(
       0, y, text.substring(0, PI_MONITOR_OLED_MESSAGE_MAX_CHARS).c_str());
+}
+
+void drawOledHelpLine(uint8_t row, const String& text) {
+  if (row >= OLED_HELP_LINE_COUNT) {
+    return;
+  }
+
+  const uint8_t y = 7 + (row * 8);
+  oledDisplay.drawStr(0, y, text.substring(0, OLED_HELP_MAX_CHARS).c_str());
+}
+
+void renderOledHelpLines(const String lines[OLED_HELP_LINE_COUNT]) {
+  oledDrawCount++;
+  oledDisplay.clearBuffer();
+  setOledBusClock();
+  oledDisplay.setFont(u8g2_font_5x7_tf);
+
+  for (uint8_t row = 0; row < OLED_HELP_LINE_COUNT; ++row) {
+    drawOledHelpLine(row, lines[row]);
+  }
+
+  oledDisplay.sendBuffer();
+  restoreExternalI2cBusClock();
 }
 
 void appendPiMonitorOledWrappedSegment(String lines[], uint8_t& lineCount,
@@ -638,6 +664,201 @@ void buildLoraPacketMonitorOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
                  : "Need matching TX";
 }
 
+void buildWifiConnectOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "WiFi Connect";
+  lines[1] = "Uses /config/wifi.txt";
+  lines[2] = "Connects saved SSID";
+  lines[3] = "OK retry connect";
+  lines[4] = "D disconnect WiFi";
+  lines[5] = "Back menu";
+  lines[6] = wifiConnectSsid.length() > 0 ? "SSID: " + wifiConnectSsid
+                                           : "SSID from SD config";
+  lines[7] = wifiConnectIp.length() > 0 ? "IP: " + wifiConnectIp
+                                        : wifiConnectStatus;
+}
+
+void buildPiMonitorOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "Pi Monitor";
+  lines[1] = "MQTT Pi status/cmds";
+  lines[2] = "Arw choose project";
+  lines[3] = "OK open/send/retry";
+  lines[4] = "Back list/menu";
+  lines[5] = "C read_now command";
+  lines[6] = "T target I interval";
+  lines[7] = "S msg page R reconn D off";
+}
+
+void buildSdManagerOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "SD Manager";
+  lines[1] = "Browse/edit microSD";
+  lines[2] = "Arw move/scroll";
+  lines[3] = "OK open/save/confirm";
+  lines[4] = "Back up/cancel/delete";
+  lines[5] = "R reload/rename";
+  lines[6] = "I info N new D del";
+  lines[7] = "E edit W/P templates";
+}
+
+void buildRtcStatusOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "RTC";
+  lines[1] = "DS3231 clock status";
+  lines[2] = "N set from NTP";
+  lines[3] = "S set build time";
+  lines[4] = "OK/R retry read";
+  lines[5] = "Back menu";
+  lines[6] = "WiFi Connect for NTP";
+  lines[7] = "PaHub ch5 RTC";
+}
+
+void buildGnssDashboardOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "GNSS Dash";
+  lines[1] = "GNSS fix/status view";
+  lines[2] = "OK/R restart parser";
+  lines[3] = "Back stop GNSS";
+  lines[4] = "No LoRa radio/TX";
+  lines[5] = "Sat/HDOP on LCD";
+  lines[6] = "Lat/lon on LCD";
+  lines[7] = "UTC/speed/alt LCD";
+}
+
+void buildGnssSkyViewOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  const GnssSkySatellite* satellite = selectedGnssSkySatellite();
+
+  lines[0] = "Arw select satellite";
+  lines[1] = "OK/R restart parser";
+  lines[2] = "Back stop GNSS";
+
+  if (satellite == nullptr) {
+    lines[3] = "Sel: none";
+    lines[4] = String("Sky:") + String(gnssSkySatelliteCount) + "/" +
+               String(gnssSkySatellitesInView) + " GSV:" +
+               String(gnssSkyGsvSentenceCount);
+    lines[5] = loraGnssHasFreshFix()
+                   ? String("Fix Sat:") + String(loraGnssSatellites)
+                   : loraGnssStatus;
+    lines[6] = lastGnssSkyGsvMs == 0
+                   ? "Wait for GSV"
+                   : String("GSV age:") +
+                         String((millis() - lastGnssSkyGsvMs) / 1000UL) +
+                         String("s");
+    lines[7] = "No LoRa radio/TX";
+    return;
+  }
+
+  const String snr = gnssSkySatelliteSnrText(*satellite);
+  lines[3] = String("Sel: ") + gnssSkySatelliteLabel(*satellite) + " " +
+             gnssSkyConstellationName(satellite->constellation);
+  lines[4] = String("PRN:") + String(satellite->prn) + " SNR:" + snr +
+             (snr == "--" ? String("") : String("dB"));
+  lines[5] = String("El:") + String(satellite->elevationDeg) +
+             " Az:" + String(satellite->azimuthDeg);
+  lines[6] = String("Dir:") +
+             gnssSkyCompassDirection(satellite->azimuthDeg) + " Age:" +
+             gnssSkySatelliteAgeText(*satellite);
+  lines[7] = String("Sky:") + String(gnssSkySatelliteCount) + "/" +
+             String(gnssSkySatellitesInView);
+}
+
+void buildReturnHomeOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "Return Home";
+  lines[1] = "Guides to saved home";
+  lines[2] = "S save/update fix";
+  lines[3] = "D clear home";
+  lines[4] = "OK/R restart GNSS";
+  lines[5] = "Back stop GNSS";
+  lines[6] = "Dist: " + returnHomeDistanceText();
+  lines[7] = "Bear: " + returnHomeBearingText();
+}
+
+void buildBreadcrumbLoggerOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "Breadcrumbs";
+  lines[1] = "Logs GNSS CSV tracks";
+  lines[2] = "S start/stop CSV";
+  lines[3] = "OK/R restart GNSS";
+  lines[4] = "Back closes log";
+  lines[5] = "Fresh fix every 5s";
+  lines[6] = String("Pts:") + String(breadcrumbLogSampleCount) +
+             " Miss:" + String(breadcrumbLogMissedFixCount);
+  lines[7] = breadcrumbLogFileName.length() > 0
+                 ? "File: " + breadcrumbLogFileName
+                 : "File: trackNNN.csv";
+}
+
+void buildLoraPacketMonitorOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "LoRa Packets";
+  lines[1] = "RX-only packet view";
+  lines[2] = "C clear counters";
+  lines[3] = "OK/R restart RX";
+  lines[4] = "Back sleep radio";
+  lines[5] = "Match sender settings";
+  lines[6] = String("Pk:") + String(loraPacketMonitorPacketCount) +
+             " CRC:" + String(loraPacketMonitorCrcErrorCount) +
+             " Err:" + String(loraPacketMonitorReceiveErrorCount);
+  lines[7] = "RX only No TX";
+}
+
+void buildLoraDiagOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "LoRa Diag";
+  lines[1] = "Cap LoRa/GNSS check";
+  lines[2] = "OK/R restart diag";
+  lines[3] = "Back sleep radio";
+  lines[4] = "RX only No TX";
+  lines[5] = "SX1262 RX + GNSS";
+  lines[6] = String("Pk:") + String(loraPacketCount) +
+             " NMEA:" + String(loraGnssLineCount);
+  lines[7] = String("RSSI:") +
+             (loraPacketCount > 0 ? String(loraLastRssi, 1) : String("--"));
+}
+
+bool renderOledHelpDashboard() {
+  String lines[OLED_HELP_LINE_COUNT];
+
+  if (currentScreen == Screen::PiMonitor) {
+    if (piMonitorView != PiMonitorView::ProjectList) {
+      return false;
+    }
+
+    buildPiMonitorOledHelpLines(lines);
+    renderOledHelpLines(lines);
+    return true;
+  }
+
+  switch (currentScreen) {
+    case Screen::WifiConnect:
+      buildWifiConnectOledHelpLines(lines);
+      break;
+    case Screen::SdManager:
+      buildSdManagerOledHelpLines(lines);
+      break;
+    case Screen::RtcStatus:
+      buildRtcStatusOledHelpLines(lines);
+      break;
+    case Screen::GnssDashboard:
+      buildGnssDashboardOledHelpLines(lines);
+      break;
+    case Screen::GnssSkyView:
+      buildGnssSkyViewOledHelpLines(lines);
+      break;
+    case Screen::ReturnHome:
+      buildReturnHomeOledHelpLines(lines);
+      break;
+    case Screen::BreadcrumbLogger:
+      buildBreadcrumbLoggerOledHelpLines(lines);
+      break;
+    case Screen::LoraPacketMonitor:
+      buildLoraPacketMonitorOledHelpLines(lines);
+      break;
+    case Screen::LoraDiag:
+      buildLoraDiagOledHelpLines(lines);
+      break;
+    default:
+      return false;
+  }
+
+  renderOledHelpLines(lines);
+  return true;
+}
+
 void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
   buildDefaultOledLines(lines);
 
@@ -769,6 +990,10 @@ void renderOledStatusDashboard() {
   if (!selectOledI2cPath()) {
     oledOnline = false;
     oledStatus = "PaHub select failed";
+    return;
+  }
+
+  if (renderOledHelpDashboard()) {
     return;
   }
 

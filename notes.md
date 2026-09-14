@@ -30,7 +30,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/sd_manager.cpp`: SD Manager for fixed-folder microSD browsing, guarded config editing, config template creation, SD card info, and confirmed create/rename/delete operations.
 - `src/voice_memos.cpp`: microSD WAV recording, listing, playback, and delete flow.
 - `src/environment_screen.cpp`: ENV III readings and CSV logging.
-- `src/oled_test.cpp`: SSD1309 OLED Status Dashboard and OLED Test diagnostics on PaHub channel 1.
+- `src/oled_test.cpp`: SSD1309 OLED Status Dashboard, Priority #8 compact command/help sheets, and OLED Test diagnostics on PaHub channel 1.
 - `src/rtc_status.cpp`: Priority #9 DS3231 / AT24C32 RTC status screen on PaHub channel 5.
 - `src/lora_gnss.cpp`: shared M5Stack Cap LoRa-1262 ATGM336H GNSS UART and TinyGPSPlus parser.
 - `src/gnss_dashboard.cpp`: `GNSS Dash` Priority #11 screen showing parsed GNSS details without starting the LoRa radio.
@@ -41,6 +41,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus shared ATGM336H GNSS parsing.
 - `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
+- `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`: LoRa TX planning gate before Priority #11 transmit-capable firmware work.
 - Firmware guard scripts use `tools/firmware_source.py` so checks scan all `.cpp` and `.h` files under `src`.
 
 ## Current Menu State
@@ -437,13 +438,16 @@ Current state:
 - User confirmed OLED Test works great on Cardputer hardware on 2026-08-15.
 - `src/oled_test.cpp` centralizes U8g2 drawing for both the OLED Status Dashboard and OLED Test diagnostics.
 - `serviceOledStatusDashboard()` refreshes the OLED about once per second from `loop()`.
-- `renderOledStatusDashboard()` builds five clipped lines for most active features.
+- `renderOledStatusDashboard()` builds five clipped lines for stable status views and compact 5x7 command/help sheets for selected Priority #8 feature screens.
 - `setOledStatusLine(...)` exists so features can provide a short optional context line later without knowing U8g2 details.
 - The dashboard shows current screen/mode, battery, Wi-Fi, MQTT when Pi Monitor is active or has been used, and feature context for Main Menu, Environment, Voice Memos, and Level.
-- In Pi Monitor, the OLED switches to a message-only 5x7 font view with one header and manually paged MQTT text: selected project messages in a project command view and all MQTT messages in Home / Diagnostics.
+- Priority #8 command/help pass added on 2026-09-13 for `WiFi Connect`, first-entry `Pi Monitor`, `SD Manager`, `RTC`, `GNSS Dash`, `GNSS Sky`, `Return Home`, `Breadcrumbs`, `LoRa Packets`, and `LoRa Diag`.
+- Menu, Battery, System, WiFi Scan, Saved WiFi, Voice Memos, Environment, OLED Test, and Level were intentionally left unchanged for this pass.
+- In Pi Monitor, the first-entry project list now shows a compact 5x7 command/help sheet; project command and Home / Diagnostics subviews keep the message-only 5x7 OLED view with one header and manually paged MQTT text.
 - User confirmed the OLED Status Dashboard works across tested features on 2026-08-22.
 - User confirmed a later OLED `not found` issue was resolved by replacing the Grove cable on 2026-09-05.
-- Priority #7 is complete enough. Continue OLED work under Priority #8.
+- Priority #7 is complete enough.
+- User confirmed the Priority #8 command/help OLED pass checks out on hardware on 2026-09-13, and Priority #8 is stopped for now.
 
 Future OLED guidance:
 
@@ -462,6 +466,10 @@ Priority #8: customize each feature for the external OLED.
 - Keep ENV III on PaHub channel 0.
 - Make per-feature OLED content useful without duplicating the built-in LCD.
 - Add guard coverage for feature-specific OLED helpers as the customization grows.
+- 2026-09-13 command/help pass uses compact 5x7 OLED sheets for WiFi Connect, Pi Monitor project-list entry, SD Manager, RTC, GNSS Dash, GNSS Sky, Return Home, Breadcrumbs, LoRa Packets, and LoRa Diag.
+- `GNSS Sky` intentionally omits the OLED banner and starts with command reminders before selected satellite data.
+- Pi Monitor project command and diagnostics subviews keep the existing OLED MQTT message viewer.
+- User confirmed this pass is working on hardware on 2026-09-13; stop with Priority #8 for now unless the user reopens OLED customization.
 
 Priority #9: add DS3231 / AT24C32 I2C RTC module.
 
@@ -482,7 +490,7 @@ Priority #9: add DS3231 / AT24C32 I2C RTC module.
 - The screen shows `RTC online`, `RTC set NTP`, `RTC needs set`, `NTP sync failed`, `Use WiFi Connect`, `RTC time invalid`, `DS3231 not found`, or `PaHub ch5 missing`.
 - The missing RTC path must be graceful: the feature screen remains usable and retries with OK/Enter or `R`.
 - The AT24C32 EEPROM unused boundary is deliberate until there is a clear reason to store RTC-specific data.
-- OLED Status Dashboard has compact `RTC` lines for DS3231 online/missing, date, time, and AT24C32 presence.
+- Priority #8 changes `RTC` OLED output to a compact 5x7 banner plus command/help sheet for NTP set, build-time set, retry, back, WiFi dependency, and PaHub channel.
 - Guard: `tools/check_rtc_status.py`.
 - Likely useful later for Environment log timestamps, Voice Memo file names, OLED clock/status, and Pi Monitor timestamps.
 - Next RTC work should make timezone configurable if needed, then add selective consumers such as Environment logs, Voice Memo names, OLED clock/status, or Pi Monitor timestamps.
@@ -534,7 +542,7 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - First milestone added: `GNSS Dash`.
 - `GNSS Dash` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus, or transmit.
 - Built-in LCD shows the GNSS Dashboard view: fix/no-fix, satellites, HDOP, latitude, longitude, speed, altitude, UTC/date, fix age, NMEA line count, checksum count, and byte count.
-- SSD1309 OLED dashboard has compact `GNSS Dash` lines for fix/line count, coordinates/status, HDOP/speed, UTC, and altitude.
+- Priority #8 changes `GNSS Dash` OLED output to a compact 5x7 banner plus command/help sheet.
 - OK/Enter or `R` restarts the parser; Backspace returns to the main menu and stops the GNSS serial object.
 - No transmit behavior is enabled.
 - User reported `GNSS Dash` is looking good on hardware on 2026-08-26.
@@ -547,7 +555,7 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - Satellite records expire after `GNSS_SKY_STALE_MS = 15000` so stale sky positions do not look live.
 - Arrow keys cycle the selected satellite through active plotted satellites, skip inactive/stale entries, and clamp/reset when the active list changes.
 - The built-in LCD highlights the selected satellite dot while the right-side panel stays focused on overall sky/fix summary.
-- SSD1309 OLED dashboard now shows selected satellite details: label, constellation, PRN/satellite ID, SNR, elevation, azimuth, compass direction, and last-seen age.
+- Priority #8 removes the `GNSS Sky` OLED banner and shows command reminders plus selected satellite details: label, constellation, PRN/satellite ID, SNR, elevation, azimuth, compass direction, and last-seen age.
 - OK/Enter or `R` restarts the parser; Backspace returns to the main menu and stops the GNSS serial object.
 - No transmit behavior is enabled.
 - User reported the base `GNSS Sky` screen is working great on hardware on 2026-08-28.
@@ -558,7 +566,7 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - `S` saves or updates one saved home point from the current fresh GNSS fix into Preferences/NVS namespace `scoober_home`.
 - `D` clears the saved home point from Preferences/NVS.
 - The screen shows distance and bearing from the current fresh GNSS fix back to the saved home point, plus a compass direction and arrival status inside `RETURN_HOME_ARRIVAL_RADIUS_METERS = 10.0f`.
-- SSD1309 OLED dashboard has compact `Return Home` lines for saved-home status, distance, bearing, GNSS status, and controls.
+- Priority #8 changes `Return Home` OLED output to a compact 5x7 banner, description, command/help sheet, distance, and bearing.
 - OK/Enter or `R` restarts the shared GNSS parser without deleting the saved home point.
 - No transmit behavior is enabled.
 - Guard: `tools/check_return_home.py`.
@@ -570,7 +578,7 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - Breadcrumb rows contain uptime seconds, UTC, date, latitude, longitude, satellites, HDOP, speed, and altitude.
 - Stale/no-fix samples are skipped and counted as missed fixes instead of writing bad coordinates.
 - Files are flushed after each row and closed when leaving the screen, pressing OK/Enter or `R`, or stopping the log.
-- SSD1309 OLED dashboard has compact Breadcrumb Logger lines for log state, fix state, point count, missed fixes, and controls.
+- Priority #8 changes `Breadcrumbs` OLED output to a compact 5x7 banner, GNSS CSV description, command/help sheet, point/missed counts, and file hint.
 - No transmit behavior is enabled.
 - Guard: `tools/check_breadcrumb_logger.py`.
 - Fifth milestone added: `LoRa Packets`, the LoRa Packet Monitor first pass.
@@ -581,11 +589,26 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - Before a packet is decoded, RSSI is shown as channel/noise RSSI; packet count, packet SNR, payload length, age, and payload preview stay in the no-packet state until matching LoRa frames arrive.
 - Payload previews are sanitized/clipped to `LORA_PACKET_MONITOR_PAYLOAD_MAX_CHARS = 64`.
 - `C` clears packet counters and payload preview; OK/Enter or `R` restarts the RX-only monitor.
-- SSD1309 OLED dashboard has compact LoRa Packet Monitor lines for radio status, counts, RSSI/SNR, payload preview, and `RX only. No TX.`.
+- Priority #8 changes `LoRa Packets` OLED output to a compact 5x7 banner, command/help sheet, matching-sender hint, packet/error count summary, and no-TX reminder.
 - No transmit behavior is enabled.
 - Guard: `tools/check_lora_packet_monitor.py`.
 - User reported on 2026-09-09 that `Breadcrumbs` works fine on hardware.
 - User reported on 2026-09-09 that `LoRa Packets` shows idle channel/noise RSSI while `Pk`, CRC, Err, SNR, Len, Age, and payload remain unchanged; this is expected until a matching LoRa packet is decoded.
+- User confirmed on 2026-09-13 that the clarified idle/listening `LoRa Packets` behavior is working fine on hardware.
+- LoRa TX planning started on 2026-09-13 in `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`.
+- This planning milestone adds no active Cardputer transmit firmware.
+- Planning assumes US 902-928 MHz for the current device location and keeps `LoRa Diag` plus `LoRa Packets` RX-only/no-transmit.
+- First planned TX settings match the RX monitors: 915.0 MHz, 125 kHz, SF12, CR 4/5, sync word 0x34, preamble 20.
+- First planned TX power is 2 dBm, with any increase treated as a separate deliberate choice after antenna, region, and rule-path review.
+- Antenna must be installed before any TX test; start with the included Cap LoRa-1262 SMA antenna.
+- First TX-capable feature should be `LoRa Ping / Range Test` with explicit arm state, canned ASCII payloads, manual rate limit, a second matching node, and ACK logging to `/tracks/lora-rangeNNN.csv`.
+- Guard: `tools/check_lora_tx_planning.py`.
+- Added a separate XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node scaffold on 2026-09-13 in `nodes/xiao_sx1262_lora_ack`.
+- XIAO node defaults target the Seeed B2B pinout: `GPIO41` NSS, `GPIO39` DIO1/IRQ, `GPIO42` RST, `GPIO40` BUSY, `GPIO38` RF switch, and XIAO default SPI `GPIO7/GPIO8/GPIO9`.
+- XIAO node uses a 3.0 V TCXO setting, `radio.setDio2AsRfSwitch(true)`, receive-mode RF switch high, transmit-mode RF switch low, and the same 915.0 MHz / 125 kHz / SF12 / CR 4/5 / sync word 0x34 / preamble 20 / 2 dBm radio settings as the Cardputer RX screens.
+- XIAO node sends `SCBR,NODE,1,xiao-sx1262-ack` only from serial `p` or the user button, replies to `SCBR,PING,1` with `SCBR,ACK,1,xiao-sx1262-ack`, and has no periodic beacons.
+- XIAO node hardware bring-up still needs to confirm SX1262 init, pin mapping, antenna connection, and Cardputer `LoRa Packets` decode.
+- Guard: `tools/check_xiao_sx1262_node.py`.
 
 ## ESP-NOW And RC Notes
 
@@ -713,6 +736,7 @@ python tools/check_lora_cap_diag.py
 python tools/check_lora_gnss_dashboard.py
 python tools/check_lora_gnss_sky_view.py
 python tools/check_lora_packet_monitor.py
+python tools/check_lora_tx_planning.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py
@@ -727,6 +751,7 @@ python tools/check_wifi_credentials_strategy.py
 python tools/check_voice_memos.py
 python tools/check_wifi_scroll.py
 python tools/check_xiao_nrf24_node.py
+python tools/check_xiao_sx1262_node.py
 ```
 
 Known build warning:
