@@ -5,6 +5,7 @@ from firmware_source import firmware_source_text
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = firmware_source_text()
+RX_ONLY_SOURCE = firmware_source_text({"lora_range_test.cpp"})
 RETURN_HOME = (ROOT / "src" / "return_home.cpp").read_text(encoding="utf-8")
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 NOTES = (ROOT / "notes.md").read_text(encoding="utf-8")
@@ -98,7 +99,7 @@ def test_return_home_source():
     )
 
     assert_tokens_absent(
-        SOURCE,
+        RX_ONLY_SOURCE,
         [
             "startTransmit(",
             ".transmit(",

@@ -2,7 +2,7 @@
 
 Date: 2026-09-13
 
-This is the planning gate for transmit-capable Priority #11 work. No transmit firmware is added to the active Cardputer firmware by this milestone. A separate XIAO companion node scaffold may transmit so it can act as the second ACK/probe node during bench testing.
+This began as the planning gate for transmit-capable Priority #11 work. `LoRa Range Test is the only Cardputer TX feature` now implemented from that gate; it is a manual, armed ping/ACK test rather than a general transmit facility. The separate XIAO companion node is its second ACK/probe node during bench testing.
 
 ## Sources Checked
 
@@ -15,7 +15,8 @@ This is the planning gate for transmit-capable Priority #11 work. No transmit fi
 - Seeed Studio Wio-SX1262 for XIAO product page: https://www.seeedstudio.com/Wio-SX1262-for-XIAO-p-6379.html
 - Seeed Studio Wio-SX1262 introduction: https://wiki.seeedstudio.com/wio_sx1262/
 - Seeed Studio XIAO ESP32S3 & Wio-SX1262 kit introduction: https://wiki.seeedstudio.com/wio_sx1262_with_xiao_esp32s3_kit/
-- Seeed Studio XIAO ESP32S3 + Wio-SX1262 pinout source: https://github.com/Seeed-Studio/one_channel_hub/blob/4cc771ac02da1bd18be67509f6b52d21bb0feabd/components/smtc_ral/bsp/sx126x/seeed_xiao_esp32s3_devkit_sx1262.c
+- Seeed Studio standalone Wio-SX1262 for XIAO schematic: https://files.seeedstudio.com/products/SenseCAP/Wio_SX1262/Wio-SX1262%20for%20XIAO%20V1.0_SCH.pdf
+- Seeed Studio XIAO ESP32S3 + Wio-SX1262 B2B kit pinout source: https://github.com/Seeed-Studio/one_channel_hub/blob/4cc771ac02da1bd18be67509f6b52d21bb0feabd/components/smtc_ral/bsp/sx126x/seeed_xiao_esp32s3_devkit_sx1262.c
 
 ## Regulatory Planning Notes
 
@@ -31,7 +32,7 @@ This is the planning gate for transmit-capable Priority #11 work. No transmit fi
 - Antenna must be installed before any TX test.
 - Use the included Cap LoRa-1262 SMA antenna for the first tests. M5Stack lists that antenna as 3 dBi, which keeps the initial plan tied to known hardware.
 - Do not change antennas without revisiting gain, conducted power, and radiated power assumptions.
-- Use the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node as the first second-node bench partner. Seeed lists the Wio-SX1262 for XIAO as an SX1262-based module for XIAO boards with 862-930 MHz LoRa support, and the XIAO ESP32S3 kit docs describe an SPI/B2B connection to the SX1262.
+- Use the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node as the first second-node bench partner. The standalone Wio-SX1262 for XIAO uses the normal XIAO headers, while the separate ESP32S3 kit uses B2B; select the matching PlatformIO environment before hardware bring-up.
 - Keep the XIAO companion node at the same conservative 2 dBm initial TX power even though the Wio-SX1262 hardware is capable of higher output power.
 - Keep the current EXT/SPI ownership model: LoRa owns `G40/G39/G14` only while a LoRa screen is active, microSD owns the bus during SD-backed screens, and each feature must hand the bus back cleanly.
 - Keep `G8/G9` reserved for internal Cardputer/cap I2C and the PI4IOE5V6408 path. The OLED/ENV/RTC PaHub path remains on the Grove side.
@@ -72,7 +73,7 @@ Scope:
 
 - Separate PlatformIO project using `seeed_xiao_esp32s3` and RadioLib.
 - Does not change the active Cardputer firmware or any Cardputer menu item.
-- Defaults to the Seeed XIAO ESP32S3 + Wio-SX1262 B2B pinout: `GPIO41` NSS, `GPIO39` DIO1/IRQ, `GPIO42` RST, `GPIO40` BUSY, `GPIO38` RF switch, and XIAO default SPI `GPIO7/GPIO8/GPIO9`.
+- Defaults to the standalone Wio-SX1262 for XIAO header pinout: `GPIO5` NSS, `GPIO2` DIO1/IRQ, `GPIO3` RST, `GPIO4` BUSY, `GPIO1` RF switch, and XIAO SPI `GPIO7/GPIO8/GPIO9`. The optional `xiao_esp32s3_b2b` environment uses the kit's `GPIO41/GPIO39/GPIO42/GPIO40/GPIO38` mapping.
 - Uses a 3.0 V TCXO setting and `radio.setDio2AsRfSwitch(true)`, matching Seeed's XIAO ESP32S3 SX1262 pinout/source assumptions.
 - Keeps the external RF switch in receive mode while listening and switches it only during transmit.
 - Starts in receive mode and has no periodic beacons.
@@ -90,16 +91,17 @@ First hardware check:
 
 ## First TX Feature
 
-Implement `LoRa Ping / Range Test` before pager, beacon, bridge, or map features.
+`LoRa Ping / Range Test` is implemented before pager, beacon, bridge, or map features. It is the only current Cardputer transmit path.
 
 The first pass should:
 
-- Use the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node with matching radio settings.
-- Send one canned ASCII payload from the Cardputer only after the screen is armed, for example `SCBR,PING,1,<device_id>,<seq>,<uptime_ms>,<battery_pct>`.
-- Listen for a short ACK from the second node, for example `SCBR,ACK,1,xiao-sx1262-ack,<seq>,<remote_rssi>,<remote_snr>,<remote_uptime_ms>`.
-- Show TX count, ACK count, last error, last ACK age, local packet RSSI/SNR, frequency, bandwidth, SF, sync word, and TX power.
-- Log range-test rows to microSD as `/tracks/lora-rangeNNN.csv` so the existing SD Manager can inspect the CSV without adding another folder first.
-- Include UTC/date from GNSS or RTC when available, and uptime when not.
+- Uses the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node as the second node with matching radio settings.
+- `A` creates a new `/tracks/lora-rangeNNN.csv` file, writes its header, and arms the screen. The screen cannot send until the CSV exists.
+- `P` sends one canned ASCII payload, `SCBR,PING,1,scoober-cardputer,<seq>,<uptime_ms>,<battery_pct>`, with a 10-second cooldown.
+- The radio then listens for `SCBR,ACK,1,xiao-sx1262-ack,<seq>,<remote_rssi>,<remote_snr>,<remote_uptime_ms>` for 10 seconds.
+- Shows TX, failure, ACK, timeout, last ACK RSSI/SNR/age, known radio settings, and CSV status on the LCD; the OLED shows the compact command sheet.
+- Logs ACKs, ACK timeouts, and TX errors to microSD, using GNSS UTC/date when available, RTC time as a fallback, and uptime in every row.
+- `C` clears on-screen counters, OK/Enter or `R` reinitializes the test, and Backspace sleeps the radio and returns to the menu.
 
 The first implementation should not include free-form text entry, periodic beacons, MQTT rebroadcasting, or automatic retries beyond a small explicit retry count.
 
@@ -110,7 +112,7 @@ The first implementation should not include free-form text entry, periodic beaco
 - MQTT LoRa Bridge: RX-to-MQTT first; any Wi-Fi-to-LoRa TX must whitelist topics/actions and prevent rebroadcast loops.
 - Signal Map: consume a known beacon or range-test ACKs and log GNSS position plus RSSI/SNR.
 
-## Acceptance Before TX Firmware
+## Acceptance Constraints For TX Firmware
 
 - Antenna is physically installed and the user confirms it before testing.
 - Region is set to US 902-928 MHz for the current device location.
@@ -119,5 +121,6 @@ The first implementation should not include free-form text entry, periodic beaco
 - First feature is `LoRa Ping / Range Test`.
 - Packet payloads are canned ASCII.
 - Manual TX has a visible arm state and rate limit.
-- The XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node builds and is ready for ACK testing once the hardware arrives and serial init passes.
+- The XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node is hardware-validated for manual `P` probes received by Cardputer `LoRa Packets`.
+- Cardputer `LoRa Ping / Range Test` still needs its dedicated hardware ACK/CSV test before any later TX-capable feature is considered.
 - Existing RX-only features still have no transmit action.

@@ -376,6 +376,32 @@ void handleKeyboard() {
       renderLoraPacketMonitor();
       renderOledStatusDashboard();
     }
+  } else if (currentScreen == Screen::LoraRangeTest) {
+    bool reset = keys.enter;
+    bool changed = false;
+
+    for (char key : keys.word) {
+      if (key == 'a' || key == 'A') {
+        toggleLoraRangeArm();
+        changed = true;
+      } else if (key == 'p' || key == 'P') {
+        sendLoraRangePing();
+        changed = true;
+      } else if (key == 'c' || key == 'C') {
+        clearLoraRangeTest();
+        changed = true;
+      } else if (key == 'r' || key == 'R') {
+        reset = true;
+      }
+    }
+
+    if (reset) {
+      stopLoraRangeTest();
+      showLoraRangeTest();
+    } else if (changed) {
+      renderLoraRangeTest();
+      renderOledStatusDashboard();
+    }
   }
 }
 

@@ -25,6 +25,9 @@ void setScreen(Screen screen) {
       screen != Screen::LoraPacketMonitor) {
     stopLoraPacketMonitor();
   }
+  if (currentScreen == Screen::LoraRangeTest && screen != Screen::LoraRangeTest) {
+    stopLoraRangeTest();
+  }
 
   currentScreen = screen;
   clearOledStatusLine();
@@ -40,6 +43,7 @@ void setScreen(Screen screen) {
   lastReturnHomeRenderMs = 0;
   lastBreadcrumbLoggerRenderMs = 0;
   lastLoraPacketMonitorRenderMs = 0;
+  lastLoraRangeRenderMs = 0;
 
   switch (currentScreen) {
     case Screen::MainMenu:
@@ -140,6 +144,10 @@ void setScreen(Screen screen) {
     case Screen::LoraPacketMonitor:
       drawScreenFrame("LoRa Packets (RX only)");
       showLoraPacketMonitor();
+      break;
+    case Screen::LoraRangeTest:
+      drawScreenFrame("LoRa Ping / Range Test");
+      showLoraRangeTest();
       break;
     case Screen::LoraDiag:
       drawScreenFrame("LoRa Diag (RX only)");

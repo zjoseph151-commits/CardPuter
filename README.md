@@ -92,7 +92,7 @@ Current state:
 - User reported the `LoRa Packets` Priority #11 screen shows idle channel/noise RSSI on hardware; matching-frame decode belongs to the upcoming second-node TX/range test.
 - User confirmed the clarified idle/listening `LoRa Packets` behavior is working fine on hardware on 2026-09-13.
 - LoRa TX planning started on 2026-09-13 in [docs/superpowers/plans/2026-09-13-lora-tx-planning.md](docs/superpowers/plans/2026-09-13-lora-tx-planning.md); no active Cardputer transmit firmware has been added yet.
-- Has a separate XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node scaffold in [nodes/xiao_sx1262_lora_ack](nodes/xiao_sx1262_lora_ack), using `SCBR,NODE,1,xiao-sx1262-ack` manual probes, `SCBR,ACK,1,xiao-sx1262-ack` ping replies, no periodic beacons, B2B defaults for `GPIO41` NSS / `GPIO39` DIO1 / `GPIO38` RF switch, and the same 915.0 MHz / 125 kHz / SF12 / CR 4/5 / sync word 0x34 / 2 dBm settings as the RX screens.
+- Has a separate XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node scaffold in [nodes/xiao_sx1262_lora_ack](nodes/xiao_sx1262_lora_ack), using `SCBR,NODE,1,xiao-sx1262-ack` manual probes, `SCBR,ACK,1,xiao-sx1262-ack` ping replies, no periodic beacons, standalone-header defaults for `GPIO5` NSS / `GPIO2` DIO1 / `GPIO1` RF switch, an explicit B2B kit environment, and the same 915.0 MHz / 125 kHz / SF12 / CR 4/5 / sync word 0x34 / 2 dBm settings as the RX screens.
 - Has a hardware-tested WiFi Connect screen that reads `/config/wifi.txt` from microSD and never stores Wi-Fi passwords in source code or NVS.
 - Has a hardware-tested Pi Monitor screen that reads `/config/pi.txt`, connects to MQTT, subscribes to Raspberry Pi home IoT device topics, publishes Cardputer status/availability, and publishes whitelisted MQTT commands.
 - User confirmed the Pi Monitor project/command UI and manual `S` OLED MQTT message paging are working on hardware on 2026-09-05.
@@ -337,6 +337,7 @@ File responsibilities:
 - [src/gnss_sky_view.cpp](src/gnss_sky_view.cpp): Priority #11 GNSS Satellite Sky View using GSV elevation, azimuth, and SNR data from the shared parser.
 - [src/return_home.cpp](src/return_home.cpp): Priority #11 Waypoint / Return Home screen using a saved home point, GNSS distance, and bearing without starting the LoRa radio.
 - [src/lora_packet_monitor.cpp](src/lora_packet_monitor.cpp): Priority #11 RX-only LoRa Packet Monitor using RadioLib and the Cap LoRa-1262 SX1262.
+- [src/lora_range_test.cpp](src/lora_range_test.cpp): Priority #11 armed manual LoRa ping/ACK range test with CSV logging.
 - [src/lora_diag.cpp](src/lora_diag.cpp): RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus the shared parsed GNSS status.
 - [docs/superpowers/plans/2026-09-13-lora-tx-planning.md](docs/superpowers/plans/2026-09-13-lora-tx-planning.md): Priority #11 LoRa TX planning gate before transmit-capable firmware work.
 - [src/shared_spi.cpp](src/shared_spi.cpp): external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
@@ -372,8 +373,9 @@ Menu items:
 14. Return Home
 15. Breadcrumbs
 16. LoRa Packets
-17. LoRa Diag
-18. Level
+17. LoRa Range
+18. LoRa Diag
+19. Level
 
 Navigation:
 
@@ -862,9 +864,9 @@ Shared-pin conflict notes:
 - LoRa `NSS` is `G5`; microSD `CS` remains `G12`.
 - `LoRa Diag` explicitly drives the microSD CS pin high before initializing the SX1262 so both SPI devices are not selected together.
 - SD-backed features explicitly drive LoRa `NSS` high and re-begin SPI for microSD after LoRa diagnostics have owned the bus.
-- The firmware only services the SX1262 LoRa radio while the `LoRa Diag` or `LoRa Packets` screen is active; the shared GNSS parser is also used by `GNSS Dash`, `GNSS Sky`, `Return Home`, and `Breadcrumbs`.
+- The firmware only services the SX1262 LoRa radio while the `LoRa Diag`, `LoRa Packets`, or `LoRa Range` screen is active; the shared GNSS parser is also used by `GNSS Dash`, `GNSS Sky`, `Return Home`, `Breadcrumbs`, and `LoRa Range` for CSV timestamps.
 - Do not use G8/G9 directly for external OLED/ENV hardware; on this cap they are the internal I2C path required by the cap expander.
-- No transmit work should be added until the antenna is installed and the legal region/frequency, bandwidth/spreading plan, and TX power are intentionally chosen.
+- `LoRa Range` is the only transmit-capable screen. Its manual arm state, canned payload, 10-second cooldown, and antenna requirement must remain in place.
 
 ### GNSS Dashboard
 
@@ -995,8 +997,8 @@ Guard:
 Status:
 
 - LoRa TX planning started on 2026-09-13 and is captured in [docs/superpowers/plans/2026-09-13-lora-tx-planning.md](docs/superpowers/plans/2026-09-13-lora-tx-planning.md).
-- This is a planning gate only; no active Cardputer transmit firmware has been added yet.
-- The separate XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node scaffold lives in [nodes/xiao_sx1262_lora_ack](nodes/xiao_sx1262_lora_ack) so the first range-test work has a second-node bench partner.
+- `LoRa Range Test is the only Cardputer TX feature`; it is a manual, armed ping/ACK diagnostic rather than general LoRa transmission support.
+- The separate XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node in [nodes/xiao_sx1262_lora_ack](nodes/xiao_sx1262_lora_ack) is confirmed to send a manual packet received by Cardputer `LoRa Packets`.
 - Current RX-only screens (`LoRa Diag` and `LoRa Packets`) must stay no-transmit/RX-only.
 
 Planning assumptions:
@@ -1006,16 +1008,18 @@ Planning assumptions:
 - Start with the current known-good radio settings: 915.0 MHz, 125 kHz, SF12, CR 4/5, sync word 0x34, and preamble 20.
 - Start TX power at 2 dBm, matching the existing RX init placeholder, then treat any power increase as a deliberate later decision.
 - Keep manual TX rate limited and explicitly armed because firmware cannot detect antenna attachment.
-- For the companion node, use Seeed's XIAO ESP32S3 + Wio-SX1262 B2B defaults: `GPIO41` NSS, `GPIO39` DIO1/IRQ, `GPIO42` RST, `GPIO40` BUSY, `GPIO38` RF switch, and XIAO default SPI pins `GPIO7/GPIO8/GPIO9`.
-- If the received module differs from the B2B version, override the `XIAO_LORA_*_PIN` build flags before upload.
+- For the standalone Wio-SX1262 for XIAO companion node, use the default header build: `GPIO5` NSS, `GPIO2` DIO1/IRQ, `GPIO3` RST, `GPIO4` BUSY, `GPIO1` RF switch, and SPI `GPIO7/GPIO8/GPIO9`. Use `-e xiao_esp32s3_b2b` only with the separate B2B kit, which uses `GPIO41/GPIO39/GPIO42/GPIO40/GPIO38`.
 
-First TX-capable feature:
+Implemented TX-capable feature:
 
-- Implement `LoRa Ping / Range Test` before pager, beacon, MQTT bridge TX, or signal-map automation.
-- Use canned ASCII payloads, the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node, and short ACK packets before attempting free-form text or periodic beacons.
+- `LoRa Ping / Range Test` comes before pager, beacon, MQTT bridge TX, or signal-map automation.
+- `A` creates `/tracks/lora-rangeNNN.csv`, writes the CSV header, and arms the test. The screen refuses TX until the log is ready.
+- `P` sends `SCBR,PING,1,scoober-cardputer,<seq>,<uptime_ms>,<battery_pct>` to the XIAO ACK node, then listens for `SCBR,ACK,1,xiao-sx1262-ack,<seq>,<remote_rssi>,<remote_snr>,<remote_uptime_ms>`.
+- Each send is manually initiated and limited to one every 10 seconds. The radio listens for an ACK for 10 seconds, then logs ACKs, timeouts, and TX errors to the CSV.
+- `C` clears the on-screen counters; OK/Enter or `R` reinitializes the radio; Backspace sleeps the radio and returns to the menu.
 - The XIAO manual probe is `SCBR,NODE,1,xiao-sx1262-ack,<seq>,<uptime_ms>` and has no periodic beacons.
 - The XIAO ping reply is `SCBR,ACK,1,xiao-sx1262-ack,<seq>,<remote_rssi>,<remote_snr>,<remote_uptime_ms>`.
-- Log range-test CSV rows as `/tracks/lora-rangeNNN.csv` so the existing SD Manager can inspect the results without adding another folder first.
+- The range CSV includes uptime, GNSS/RTC time when available, sequence, result, local ACK RSSI/SNR, remote RSSI/SNR, and battery percentage. SD Manager can inspect it without another folder.
 
 References:
 
@@ -1031,6 +1035,7 @@ References:
 Guard:
 
 - `tools/check_lora_tx_planning.py`
+- `tools/check_lora_range_test.py`
 - `tools/check_xiao_sx1262_node.py`
 
 LoRa constants:
@@ -1393,13 +1398,10 @@ Guard script:
 
 Highest priority:
 
-1. Continue Priority #11 with the LoRa TX planning gate in [docs/superpowers/plans/2026-09-13-lora-tx-planning.md](docs/superpowers/plans/2026-09-13-lora-tx-planning.md).
-2. Build and hardware-check the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node in [nodes/xiao_sx1262_lora_ack](nodes/xiao_sx1262_lora_ack) once the module arrives.
-3. Confirm the TX checklist before Cardputer firmware work: antenna installed, US 902-928 MHz region, 915.0 MHz / 125 kHz / SF12 / CR 4/5 / sync word 0x34 / preamble 20, 2 dBm initial TX power, explicit arm state, canned ASCII payloads, rate limit, and a second node for ACK testing.
-4. Keep `LoRa Diag` and `LoRa Packets` RX-only while adding any dedicated TX feature.
-5. Implement `LoRa Ping / Range Test` before pager, beacon, MQTT bridge TX, or signal-map automation.
-6. Log first range-test CSV rows to `/tracks/lora-rangeNNN.csv` so SD Manager can inspect them.
-7. Run `tools/check_lora_tx_planning.py`, `tools/check_xiao_sx1262_node.py`, and the full guard suite before and after any TX-capable firmware change.
+1. Hardware-check `LoRa Range`: confirm its `A` arm state, `P` ping, matching XIAO ACK, 10-second cooldown, and `/tracks/lora-rangeNNN.csv` rows with the antenna installed.
+2. Keep `LoRa Diag` and `LoRa Packets` RX-only while adding any later dedicated TX feature.
+3. Use the successful range test to decide whether the next Priority #11 feature is a canned-message pager, a constrained location beacon, or a receive-first MQTT LoRa bridge.
+4. Run `tools/check_lora_tx_planning.py`, `tools/check_lora_range_test.py`, `tools/check_xiao_sx1262_node.py`, and the full guard suite before and after TX-capable changes.
 
 Good near-term improvements:
 
@@ -1534,6 +1536,7 @@ python tools/check_lora_cap_diag.py
 python tools/check_lora_gnss_dashboard.py
 python tools/check_lora_gnss_sky_view.py
 python tools/check_lora_packet_monitor.py
+python tools/check_lora_range_test.py
 python tools/check_lora_tx_planning.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py

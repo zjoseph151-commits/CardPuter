@@ -17,6 +17,7 @@ const MenuItem MENU_ITEMS[] = {
     {"Return Home", Screen::ReturnHome},
     {"Breadcrumbs", Screen::BreadcrumbLogger},
     {"LoRa Packets", Screen::LoraPacketMonitor},
+    {"LoRa Range", Screen::LoraRangeTest},
     {"LoRa Diag", Screen::LoraDiag},
     {"Level", Screen::LevelTool},
 };
@@ -54,6 +55,10 @@ unsigned long lastBreadcrumbLogSampleMs = 0;
 unsigned long lastLoraPacketMonitorServiceMs = 0;
 unsigned long lastLoraPacketMonitorRenderMs = 0;
 unsigned long loraPacketMonitorLastPacketMs = 0;
+unsigned long lastLoraRangeServiceMs = 0;
+unsigned long lastLoraRangeRenderMs = 0;
+unsigned long loraRangeLastTxMs = 0;
+unsigned long loraRangeLastAckMs = 0;
 M5Canvas contentCanvas(&M5Cardputer.Display);
 bool contentCanvasReady = false;
 BatteryTrend batteryTrend;
@@ -170,6 +175,12 @@ bool loraPacketMonitorRfSwitchEnabled = false;
 bool loraPacketMonitorRadioReady = false;
 bool loraPacketMonitorListening = false;
 bool loraPacketMonitorHasInstantRssi = false;
+bool loraRangeInitialized = false;
+bool loraRangeRadioReady = false;
+bool loraRangeListening = false;
+bool loraRangeArmed = false;
+bool loraRangeTransmitting = false;
+bool loraRangeAwaitingAck = false;
 bool sdManagerSdAvailable = false;
 bool sdManagerConfigEditingValue = false;
 File voiceMemoFile;
@@ -197,6 +208,9 @@ String breadcrumbLogFileName;
 String breadcrumbLogFilePath;
 String loraPacketMonitorStatus = "Not initialized.";
 String loraPacketMonitorLastPayload;
+String loraRangeStatus = "Not initialized.";
+String loraRangeLogStatus = "A arm to create CSV.";
+String loraRangeLogFileName;
 String sdManagerStatus = "Select folder.";
 String sdManagerCurrentFolder;
 String sdManagerSelectedPath;
@@ -229,6 +243,7 @@ int lastBatteryCurrentMa = 0;
 int i2cHubActiveChannel = -1;
 int loraRadioState = 0;
 int loraPacketMonitorRadioState = 0;
+int loraRangeRadioState = 0;
 int sharedSpiOwner = SHARED_SPI_OWNER_NONE;
 int selectedGnssSkySatelliteIndex = -1;
 uint8_t oledActiveAddress = 0;
@@ -250,6 +265,8 @@ float loraLastSnr = 0.0f;
 float loraPacketMonitorLastRssi = 0.0f;
 float loraPacketMonitorLastSnr = 0.0f;
 float loraPacketMonitorInstantRssi = 0.0f;
+float loraRangeLastAckRssi = 0.0f;
+float loraRangeLastAckSnr = 0.0f;
 double loraGnssLatitude = 0.0;
 double loraGnssLongitude = 0.0;
 double returnHomeLatitude = 0.0;
@@ -274,6 +291,12 @@ uint32_t breadcrumbLogMissedFixCount = 0;
 uint32_t loraPacketMonitorPacketCount = 0;
 uint32_t loraPacketMonitorCrcErrorCount = 0;
 uint32_t loraPacketMonitorReceiveErrorCount = 0;
+uint32_t loraRangeTxCount = 0;
+uint32_t loraRangeTxFailCount = 0;
+uint32_t loraRangeAckCount = 0;
+uint32_t loraRangeAckTimeoutCount = 0;
+uint32_t loraRangeLogRowCount = 0;
+uint32_t loraRangeSequence = 0;
 uint32_t rtcReadAttemptCount = 0;
 uint32_t gnssSkySatelliteCount = 0;
 uint32_t gnssSkySatellitesInView = 0;

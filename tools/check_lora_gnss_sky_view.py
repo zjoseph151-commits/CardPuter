@@ -5,6 +5,7 @@ from firmware_source import firmware_source_text
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = firmware_source_text()
+RX_ONLY_SOURCE = firmware_source_text({"lora_range_test.cpp"})
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 NOTES = (ROOT / "notes.md").read_text(encoding="utf-8")
 TODO = (ROOT / "todo.md").read_text(encoding="utf-8")
@@ -74,7 +75,7 @@ def test_lora_gnss_sky_view_source():
     )
 
     assert_tokens_absent(
-        SOURCE,
+        RX_ONLY_SOURCE,
         [
             "startTransmit(",
             ".transmit(",

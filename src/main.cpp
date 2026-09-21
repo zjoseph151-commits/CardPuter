@@ -95,6 +95,10 @@ void loop() {
     serviceLoraPacketMonitor();
   }
 
+  if (currentScreen == Screen::LoraRangeTest) {
+    serviceLoraRangeTest();
+  }
+
   serviceOledStatusDashboard();
 
   delay(10);

@@ -64,6 +64,8 @@ def test_scoober_menu_structure():
     assert "Screen::SdManager" in SOURCE
     assert "Screen::BreadcrumbLogger" in SOURCE
     assert "Screen::LoraPacketMonitor" in SOURCE
+    assert "Screen::LoraRangeTest" in SOURCE
+    assert "{\"LoRa Range\", Screen::LoraRangeTest}" in SOURCE
     assert "key == ';'" in SOURCE
     assert "key == '.'" in SOURCE
     assert "keys.enter" in SOURCE

@@ -282,15 +282,15 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - Maintain the current safety boundary: no LoRa transmit behavior until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately chosen.
 - LoRa TX planning milestone started on 2026-09-13:
   - planning doc: `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`
-  - no active Cardputer transmit firmware is added in the planning milestone
+  - `LoRa Range Test is the only Cardputer TX feature`; `LoRa Diag` and `LoRa Packets` remain RX-only
   - assume US 902-928 MHz for the current device location unless the user changes region
   - antenna must be installed before any TX test; use the included Cap LoRa-1262 SMA antenna first
   - first settings should match the RX monitors: 915.0 MHz, 125 kHz, SF12, CR 4/5, sync word 0x34, preamble 20
   - first TX power should be 2 dBm, with any increase treated as a separate deliberate choice
-  - first TX-capable feature should be `LoRa Ping / Range Test`, not pager/beacon/bridge automation
+  - `LoRa Ping / Range Test` is implemented before pager/beacon/bridge automation
   - require explicit arm state, canned ASCII payloads, manual rate limit, and the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node for ACK testing
   - log first range-test CSV rows as `/tracks/lora-rangeNNN.csv` so SD Manager can view them
-  - Guard: `tools/check_lora_tx_planning.py`
+  - Guards: `tools/check_lora_tx_planning.py`, `tools/check_lora_range_test.py`
 - First milestone added: `GNSS Dash`.
   - Uses shared TinyGPSPlus parser from the Cap LoRa-1262 ATGM336H GNSS UART.
   - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
@@ -353,9 +353,10 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29.
   - Breadcrumb Logger: implemented as `Breadcrumbs`; user reported it is working fine on hardware on 2026-09-09.
   - LoRa Packet Monitor: first RX-only packet-viewer pass implemented as `LoRa Packets`; idle/listening behavior was confirmed as working fine on hardware on 2026-09-13.
-- LoRa TX Planning: active, no active Cardputer transmit firmware yet; see `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`.
-- XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: scaffolded in `nodes/xiao_sx1262_lora_ack`; separate from active Cardputer firmware, uses B2B defaults (`GPIO41` NSS, `GPIO39` DIO1, `GPIO38` RF switch), sends `SCBR,NODE,1,xiao-sx1262-ack` manual probes, replies with `SCBR,ACK,1,xiao-sx1262-ack`, has no periodic beacons, and waits for hardware bring-up.
-- LoRa Range Test: with the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node, send pings/acks and log RSSI/SNR over distance.
+  - Cat Collar LoRa Beacon / RSSI Finder: planned XIAO ESP32-S3 + Wio-SX1262 collar node that broadcasts device ID and battery voltage at a conservative interval; Cardputer side would act as a handheld RSSI/last-heard finder, with optional lost-mode beaconing and no GPS requirement for the first pass.
+- LoRa TX Planning: active; `LoRa Range Test is the only Cardputer TX feature`; see `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`.
+- XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: in `nodes/xiao_sx1262_lora_ack`; the standalone-header mapping (`GPIO5` NSS, `GPIO2` DIO1, `GPIO1` RF switch) was hardware-validated by manual `P` probes with `SCBR,NODE,1,xiao-sx1262-ack` received on Cardputer `LoRa Packets`. The B2B kit environment remains available, the node replies with `SCBR,ACK,1,xiao-sx1262-ack`, and it has no periodic beacons.
+- LoRa Range Test: implemented as `LoRa Range`; `A` opens `/tracks/lora-rangeNNN.csv` and arms it, `P` sends `SCBR,PING,1` and waits up to 10 seconds for `SCBR,ACK,1`, and `C` clears display counters. It logs ACKs, timeouts, and TX errors with RSSI/SNR.
   - Scoober Pager: simple LoRa short-message texting between devices, starting with canned messages.
   - Location Beacon: periodically broadcast device ID, battery, and optional GPS position after transmit guardrails are defined.
   - MQTT LoRa Bridge: when Wi-Fi is connected, forward received LoRa packets into the Raspberry Pi MQTT system.
@@ -368,9 +369,9 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29
   - Breadcrumb Logger: implemented as `Breadcrumbs`; user reported it is working fine on hardware on 2026-09-09
   - LoRa Packet Monitor: first pass implemented as `LoRa Packets`; idle/listening behavior confirmed on hardware on 2026-09-13
-  - LoRa TX planning: active gate before transmit-capable Cardputer firmware; no active Cardputer transmit firmware yet
-  - XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: scaffolded in `nodes/xiao_sx1262_lora_ack`; build and hardware-check once the module arrives
-  - LoRa Ping / Range Test: first transmit-capable Cardputer feature after TX planning acceptance and XIAO ACK node bring-up
+  - LoRa TX planning: active gate; `LoRa Range Test is the only Cardputer TX feature`
+  - XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: hardware-validated manual probe path in `nodes/xiao_sx1262_lora_ack`
+  - LoRa Ping / Range Test: implemented and awaiting its dedicated Cardputer TX/ACK/CSV hardware check
   - Scoober Pager: after range-test stability, starting with canned messages
   - Location Beacon: after explicit privacy, interval, and airtime choices
   - MQTT LoRa Bridge / Signal Map: after the basic TX/RX protocol and logging are proven
@@ -384,14 +385,15 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - confirm `LoRa Packets` shows channel/noise RSSI while `Pk`, SNR, length, age, and payload remain in the no-packet state before a valid frame arrives
   - with matching LoRa packets available, confirm packet count, payload preview, RSSI, SNR, and age update
   - press `C` in `LoRa Packets` and confirm counters/payload clear without adding any transmit behavior
-- TX planning checklist before any transmit-capable firmware:
+- LoRa Range hardware test checklist:
   - confirm antenna is installed
   - confirm US 902-928 MHz region is still correct for the test location
   - confirm initial TX settings: 915.0 MHz, 125 kHz, SF12, CR 4/5, sync word 0x34, preamble 20
   - confirm initial TX power is 2 dBm
-  - confirm the first feature is `LoRa Ping / Range Test`
-  - confirm packets are canned ASCII and manually rate limited
-  - confirm the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node is flashed, has antenna attached, initializes SX1262, and sends a manual `SCBR,NODE,1,xiao-sx1262-ack` probe visible in `LoRa Packets`
+  - confirm `A` creates `/tracks/lora-rangeNNN.csv`, writes a header, and shows the armed state
+  - confirm `P` sends canned `SCBR,PING,1` only while armed and limits sends to one every 10 seconds
+  - confirm the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node has antenna attached, sends `SCBR,ACK,1`, and increments the Cardputer ACK count
+  - confirm ACK, timeout, and TX-error results add usable CSV rows in SD Manager
   - confirm `LoRa Diag` and `LoRa Packets` remain RX-only/no-transmit
 
 ## Priority 12: SD Manager / Config Editor
@@ -501,8 +503,9 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - User confirmed on 2026-09-13 that the clarified idle/listening `LoRa Packets` behavior is working fine on hardware.
 - Started Priority #8 command/help OLED pass on 2026-09-13 for WiFi Connect, first-entry Pi Monitor, SD Manager, RTC, GNSS Dash, GNSS Sky, Return Home, Breadcrumbs, LoRa Packets, and LoRa Diag; Menu, Battery, System, WiFi Scan, Saved WiFi, Voice Memos, Environment, OLED Test, and Level were left unchanged.
 - User confirmed the Priority #8 command/help OLED pass checks out on hardware on 2026-09-13, and Priority #8 is stopped for now.
-- Started LoRa TX planning on 2026-09-13 with no active Cardputer transmit firmware; first planned TX-capable Cardputer feature is `LoRa Ping / Range Test` using US 902-928 MHz, 2 dBm initial TX power, antenna confirmation, canned ASCII payloads, rate limiting, and the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node for ACK testing.
-- Added the separate XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node scaffold in `nodes/xiao_sx1262_lora_ack` on 2026-09-13. It uses the same 915.0 MHz / 125 kHz / SF12 / CR 4/5 / sync word 0x34 / preamble 20 / 2 dBm settings, B2B defaults from Seeed pinout source (`GPIO41`, `GPIO39`, `GPIO42`, `GPIO40`, `GPIO38`), manual `SCBR,NODE,1,xiao-sx1262-ack` probes, `SCBR,ACK,1,xiao-sx1262-ack` ping replies, and no periodic beacons.
+- Started LoRa TX planning on 2026-09-13 using US 902-928 MHz, 2 dBm initial TX power, antenna confirmation, canned ASCII payloads, rate limiting, and the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node for ACK testing. `LoRa Range Test is the only Cardputer TX feature` from that plan.
+- Corrected the XIAO ACK node hardware profile on 2026-09-18: the standalone Wio-SX1262 for XIAO uses header defaults (`GPIO5`, `GPIO2`, `GPIO3`, `GPIO4`, `GPIO1`), while the separate B2B kit remains available as `xiao_esp32s3_b2b` with (`GPIO41`, `GPIO39`, `GPIO42`, `GPIO40`, `GPIO38`).
+- Added `LoRa Range` on 2026-09-18: an armed manual `SCBR,PING,1` sender that awaits `SCBR,ACK,1` for 10 seconds, limits sends to one every 10 seconds, and logs results to `/tracks/lora-rangeNNN.csv`.
 - Started Priority #9 with `RTC`, a DS3231 / AT24C32 status screen on PaHub channel 5 that reads time/temperature, detects EEPROM presence, sets/corrects from NTP local time with `N`, keeps build-time setting as an offline fallback, and keeps missing RTC behavior graceful while the EEPROM unused boundary remains in place.
 - Priority #5 credential strategy documented as microSD `/config/wifi.txt`, with guard coverage before connection firmware is added.
 - Added WiFi Connect screen using microSD `/config/wifi.txt`, graceful missing-config behavior, timeout-based `WiFi.begin`, IP display, retry, and disconnect controls.

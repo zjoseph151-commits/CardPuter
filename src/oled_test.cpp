@@ -53,6 +53,8 @@ String screenTitleForOled() {
       return "Breadcrumbs";
     case Screen::LoraPacketMonitor:
       return "LoRa Packets";
+    case Screen::LoraRangeTest:
+      return "LoRa Range";
     case Screen::LoraDiag:
       return "LoRa Diag";
     case Screen::LevelTool:
@@ -664,6 +666,18 @@ void buildLoraPacketMonitorOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
                  : "Need matching TX";
 }
 
+void buildLoraRangeOledLines(String lines[OLED_STATUS_LINE_COUNT]) {
+  lines[0] = "LoRa Range";
+  lines[1] = loraRangeArmed ? "TX: armed" : "TX: disarmed";
+  lines[2] = String("TX:") + String(loraRangeTxCount) + " ACK:" +
+             String(loraRangeAckCount);
+  lines[3] = String("ACK R:") +
+             (isfinite(loraRangeLastAckRssi)
+                  ? String(loraRangeLastAckRssi, 1)
+                  : String("--"));
+  lines[4] = loraRangeStatus;
+}
+
 void buildWifiConnectOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
   lines[0] = "WiFi Connect";
   lines[1] = "Uses /config/wifi.txt";
@@ -797,6 +811,27 @@ void buildLoraPacketMonitorOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
   lines[7] = "RX only No TX";
 }
 
+void buildLoraRangeOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
+  lines[0] = "LoRa Range Test";
+  lines[1] = loraRangeArmed ? "ARMED: P sends ping" : "A arm + open CSV";
+  lines[2] = "P one ping / 10 sec";
+  lines[3] = "C clear  OK/R restart";
+  lines[4] = "Back sleeps radio";
+  lines[5] = String("TX:") + String(loraRangeTxCount) + " ACK:" +
+             String(loraRangeAckCount) + " TO:" +
+             String(loraRangeAckTimeoutCount);
+  lines[6] = String("ACK R:") +
+             (isfinite(loraRangeLastAckRssi)
+                  ? String(loraRangeLastAckRssi, 1)
+                  : String("--")) +
+             " S:" +
+             (isfinite(loraRangeLastAckSnr) ? String(loraRangeLastAckSnr, 1)
+                                              : String("--"));
+  lines[7] = loraRangeLogFileName.length() > 0
+                 ? "Log: " + loraRangeLogFileName
+                 : "Antenna before A";
+}
+
 void buildLoraDiagOledHelpLines(String lines[OLED_HELP_LINE_COUNT]) {
   lines[0] = "LoRa Diag";
   lines[1] = "Cap LoRa/GNSS check";
@@ -847,6 +882,9 @@ bool renderOledHelpDashboard() {
       break;
     case Screen::LoraPacketMonitor:
       buildLoraPacketMonitorOledHelpLines(lines);
+      break;
+    case Screen::LoraRangeTest:
+      buildLoraRangeOledHelpLines(lines);
       break;
     case Screen::LoraDiag:
       buildLoraDiagOledHelpLines(lines);
@@ -907,6 +945,9 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
       break;
     case Screen::LoraPacketMonitor:
       buildLoraPacketMonitorOledLines(lines);
+      break;
+    case Screen::LoraRangeTest:
+      buildLoraRangeOledLines(lines);
       break;
     case Screen::LevelTool:
       lines[4] = oledLevelLine();
