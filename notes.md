@@ -37,9 +37,8 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/gnss_sky_view.cpp`: `GNSS Sky` Priority #11 screen drawing GSV satellite elevation/azimuth/SNR data and selected satellite highlighting.
 - `src/return_home.cpp`: `Return Home` Priority #11 screen saving one home waypoint and showing GNSS distance/bearing back to it without starting the LoRa radio.
 - `src/breadcrumb_logger.cpp`: `Breadcrumbs` Priority #11 screen writing fresh GNSS fixes to `/tracks/trackNNN.csv` on microSD without starting the LoRa radio.
-- `src/lora_packet_monitor.cpp`: `LoRa Packets` Priority #11 RX-only packet viewer for the SX1262 using RadioLib and the known Cap LoRa settings.
-- `src/lora_range_test.cpp`: `LoRa Range` Priority #11 armed manual SX1262 ping/ACK test with shared-SPI CSV logging.
-- `src/lora_diag.cpp`: RX-only M5Stack Cap LoRa-1262 diagnostics using RadioLib for SX1262 plus shared ATGM336H GNSS parsing.
+- `src/lora_diag.cpp`: paged RX-only M5Stack Cap LoRa-1262 packet and hardware/GNSS diagnostics.
+- `src/lora_messages.cpp`: manual short-message TX/RX with matched ACKs and in-memory history.
 - `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
 - `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`: LoRa TX planning gate before Priority #11 transmit-capable firmware work.
@@ -65,9 +64,8 @@ The active menu is defined in `MENU_ITEMS`:
 {"GNSS Sky", Screen::GnssSkyView}
 {"Return Home", Screen::ReturnHome}
 {"Breadcrumbs", Screen::BreadcrumbLogger}
-{"LoRa Packets", Screen::LoraPacketMonitor}
-{"LoRa Range", Screen::LoraRangeTest}
 {"LoRa Diag", Screen::LoraDiag}
+{"LoRa Messages", Screen::LoraMessages}
 {"Level", Screen::LevelTool}
 ```
 
@@ -103,8 +101,8 @@ Feature-specific keys:
 - GNSS Sky: arrow keys cycle the selected satellite through active plotted satellites; OK/Enter or `R` restarts the shared GNSS parser
 - Return Home: `S` saves/updates the current fresh GNSS fix as the saved home point, `D` clears the saved home point, OK/Enter or `R` restarts the shared GNSS parser
 - Breadcrumbs: `S` starts/stops CSV track logging to `/tracks/trackNNN.csv`; OK/Enter or `R` restarts the shared GNSS parser and closes any active log
-- LoRa Packets: `C` clears packet counters/payload preview; OK/Enter or `R` restarts the RX-only packet viewer
-- LoRa Diag: OK/Enter or `R` restarts Cap LoRa-1262 diagnostics
+- LoRa Diag: arrows change packet/hardware pages, `C` clears packet counters/payload preview, OK/Enter or `R` restarts RX-only diagnostics
+- LoRa Messages: `N`/OK composes; Enter sends; Backspace erases or cancels an empty draft; arrows browse history; `R` restarts the radio
 
 Do not re-add the old footer text inside every feature. The user asked to remove it.
 
@@ -534,12 +532,16 @@ Cap LoRa-1262 documented pin map:
 Shared conflict notes:
 
 - SX1262 LoRa and microSD share SPI signal pins `G40/G39/G14`; chip selects are separate (`G5 NSS` for LoRa, `G12 CS` for microSD).
-- `LoRa Diag` and `LoRa Packets` deselect microSD before SX1262 init and only service the SX1262 radio while their RX-only screens are active. `LoRa Range` owns the radio during its armed manual test and hands the SPI bus to microSD only while writing a CSV row; the shared GNSS parser is used by `GNSS Dash`, `GNSS Sky`, `Return Home`, `Breadcrumbs`, and `LoRa Range`.
+- `LoRa Diag` and `LoRa Messages` each own the SX1262 only while their screen is active and deselect microSD before radio init. `LoRa Diag` remains RX-only; `LoRa Messages` is the sole active Cardputer TX screen. The shared GNSS parser is also used by `GNSS Dash`, `GNSS Sky`, `Return Home`, and `Breadcrumbs`.
 - SD-backed features call `prepareSharedSpiForSd()` so LoRa `NSS` is high and SPI is re-begun for microSD after LoRa has owned the bus.
 - A small `sharedSpiOwner` flag prevents unnecessary SPI resets while a feature is already using the SD path, but forces a clean handoff after LoRa.
 - Keep G8/G9 free for the internal Cardputer/cap I2C path; do not use them directly for OLED or ENV III.
 
 Priority #11: Cap LoRa-1262 feature expansion.
+
+- 2026-09-22: User confirmed bidirectional Cardputer/XIAO packet exchange and the Cardputer `LoRa Range` test. The XIAO's 60-second deep-sleep beacon test worked; node TX is now 5 dBm with DC-DC mode. Cardputer TX remains 2 dBm.
+- Implemented design is in `docs/superpowers/plans/2026-09-22-lora-messages.md`: the packet monitor and cap/GNSS diagnostics now share one paged RX-only screen; typed messaging replaces the range UI. Old `/tracks/lora-rangeNNN.csv` files are historical data and must not be deleted.
+- The XIAO's successful minute deep-sleep experiment is disabled for the current awake serial messaging peer. Message/ACK hardware validation remains pending; its display belongs to a future chat.
 
 - First milestone added: `GNSS Dash`.
 - `GNSS Dash` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus, or transmit.
@@ -583,7 +585,7 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - Priority #8 changes `Breadcrumbs` OLED output to a compact 5x7 banner, GNSS CSV description, command/help sheet, point/missed counts, and file hint.
 - No transmit behavior is enabled.
 - Guard: `tools/check_breadcrumb_logger.py`.
-- Fifth milestone added: `LoRa Packets`, the LoRa Packet Monitor first pass.
+- Historical fifth milestone (now merged into `LoRa Diag`): `LoRa Packets`, the LoRa Packet Monitor first pass.
 - `LoRa Packets` initializes SX1262 with the same known-good RX settings as `LoRa Diag`.
 - It detects the PI4IOE5V6408 cap expander and drives P0 high for the RF switch.
 - It is an RX-only packet viewer for matching LoRa settings and has no transmit action.
@@ -593,7 +595,7 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - `C` clears packet counters and payload preview; OK/Enter or `R` restarts the RX-only monitor.
 - Priority #8 changes `LoRa Packets` OLED output to a compact 5x7 banner, command/help sheet, matching-sender hint, packet/error count summary, and no-TX reminder.
 - No transmit behavior is enabled.
-- Guard: `tools/check_lora_packet_monitor.py`.
+- Current guard: `tools/check_lora_messages.py`.
 - User reported on 2026-09-09 that `Breadcrumbs` works fine on hardware.
 - User reported on 2026-09-09 that `LoRa Packets` shows idle channel/noise RSSI while `Pk`, CRC, Err, SNR, Len, Age, and payload remain unchanged; this is expected until a matching LoRa packet is decoded.
 - User confirmed on 2026-09-13 that the clarified idle/listening `LoRa Packets` behavior is working fine on hardware.
@@ -607,7 +609,7 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - Each manual send has a 10 seconds cooldown and opens a 10 seconds ACK window for `SCBR,ACK,1,xiao-sx1262-ack,<seq>,<remote_rssi>,<remote_snr>,<remote_uptime_ms>`.
 - It logs ACKs, ACK timeouts, and TX errors with local/remote RSSI/SNR, GNSS or RTC timestamp data when available, and battery percentage. `C` clears display counters, OK/Enter or `R` reinitializes the radio, and Backspace sleeps it.
 - The OLED uses the compact command sheet with arm, ping, clear, restart, radio-sleep, counters, and latest ACK metrics.
-- Guards: `tools/check_lora_tx_planning.py`, `tools/check_lora_range_test.py`.
+- Current guard: `tools/check_lora_messages.py`.
 - Added a separate XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node scaffold on 2026-09-13 in `nodes/xiao_sx1262_lora_ack`.
 - XIAO node defaults target the standalone Wio-SX1262 for XIAO header pinout: `GPIO5` NSS, `GPIO2` DIO1/IRQ, `GPIO3` RST, `GPIO4` BUSY, `GPIO1` RF switch, and SPI `GPIO7/GPIO8/GPIO9`. The separate B2B kit uses the optional `xiao_esp32s3_b2b` environment with `GPIO41/GPIO39/GPIO42/GPIO40/GPIO38`.
 - XIAO node uses a 3.0 V TCXO setting, `radio.setDio2AsRfSwitch(true)`, receive-mode RF switch high, transmit-mode RF switch low, and the same 915.0 MHz / 125 kHz / SF12 / CR 4/5 / sync word 0x34 / preamble 20 / 2 dBm radio settings as the Cardputer RX screens.
@@ -740,9 +742,7 @@ python tools/check_level_tool.py
 python tools/check_lora_cap_diag.py
 python tools/check_lora_gnss_dashboard.py
 python tools/check_lora_gnss_sky_view.py
-python tools/check_lora_packet_monitor.py
-python tools/check_lora_range_test.py
-python tools/check_lora_tx_planning.py
+python tools/check_lora_messages.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py

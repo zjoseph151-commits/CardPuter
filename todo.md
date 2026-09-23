@@ -277,10 +277,15 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 
 ## Priority 11: Cap LoRa-1262 Feature Expansion
 
+- 2026-09-22 transition: the user confirmed Cardputer/XIAO RX and TX, the Cardputer range test, and improved XIAO minute-beacon range after using 5 dBm and DC-DC mode. See `docs/superpowers/plans/2026-09-22-lora-messages.md`.
+- Implemented in firmware: `LoRa Packets` is merged into two-page RX-only `LoRa Diag`; `LoRa Range` is retired from the menu and replaced by typed `LoRa Messages` with matching ACKs and recent in-memory history. Preserve old range CSVs on microSD.
+- The XIAO now stays awake, prints incoming messages, ACKs them, and sends replies using serial `m <text>`. The earlier minute deep-sleep beacon was tested successfully but is disabled for messaging; its display is deferred to another chat.
+- Next hardware check: both diagnostic pages, Cardputer-to-XIAO message and ACK, XIAO-to-Cardputer reply and ACK, composer deletion/cancel, cooldown, timeout, and shared SPI recovery.
+
 - Use this priority for future Cap LoRa-1262 features after the diagnostics/GNSS parser foundation is stable.
 - Keep the Cap LoRa-1262 work split into separate menu features when that makes the UI clearer; do not force everything into one feature screen.
 - Maintain the current safety boundary: no LoRa transmit behavior until antenna, legal region/frequency, bandwidth/spreading plan, and TX power are deliberately chosen.
-- LoRa TX planning milestone started on 2026-09-13:
+- Historical LoRa TX planning milestone started on 2026-09-13 (superseded by the current messaging plan):
   - planning doc: `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`
   - `LoRa Range Test is the only Cardputer TX feature`; `LoRa Diag` and `LoRa Packets` remain RX-only
   - assume US 902-928 MHz for the current device location unless the user changes region
@@ -290,7 +295,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - `LoRa Ping / Range Test` is implemented before pager/beacon/bridge automation
   - require explicit arm state, canned ASCII payloads, manual rate limit, and the XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node for ACK testing
   - log first range-test CSV rows as `/tracks/lora-rangeNNN.csv` so SD Manager can view them
-  - Guards: `tools/check_lora_tx_planning.py`, `tools/check_lora_range_test.py`
+  - Current guard: `tools/check_lora_messages.py`
 - First milestone added: `GNSS Dash`.
   - Uses shared TinyGPSPlus parser from the Cap LoRa-1262 ATGM336H GNSS UART.
   - Starts GNSS serial only; it does not initialize SX1262, claim the shared SPI bus, or transmit.
@@ -337,7 +342,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Priority #8 now gives `Breadcrumbs` a compact 5x7 OLED banner, GNSS CSV description, command/help sheet, point/missed counts, and file hint.
   - No transmit path is enabled.
   - Guard: `tools/check_breadcrumb_logger.py`.
-- Fifth milestone added: `LoRa Packets`, the LoRa Packet Monitor first pass.
+- Historical fifth milestone (now merged into `LoRa Diag`): `LoRa Packets`, the LoRa Packet Monitor first pass.
   - Uses RadioLib for the SX1262 LoRa radio and the same RX settings as `LoRa Diag`.
   - Detects the Cap LoRa-1262 PI4IOE5V6408 I/O expander and enables the P0 antenna switch.
   - Acts as an RX-only packet viewer for matching LoRa settings.
@@ -346,23 +351,19 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - Clears packet counters with `C` and restarts RX with OK/Enter or `R`.
   - Priority #8 now gives `LoRa Packets` a compact 5x7 OLED banner, command/help sheet, matching-sender hint, packet/error count summary, and no-TX reminder.
   - No transmit path is enabled.
-  - Guard: `tools/check_lora_packet_monitor.py`.
+  - Current guard: `tools/check_lora_messages.py`.
 - Feature ideas to implement:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26.
   - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected satellite confirmed on hardware on 2026-08-28.
   - Waypoint / Return Home: implemented as `Return Home`; confirmed on hardware on 2026-08-29.
   - Breadcrumb Logger: implemented as `Breadcrumbs`; user reported it is working fine on hardware on 2026-09-09.
   - LoRa Packet Monitor: first RX-only packet-viewer pass implemented as `LoRa Packets`; idle/listening behavior was confirmed as working fine on hardware on 2026-09-13.
-  - Cat Collar LoRa Beacon / RSSI Finder: planned XIAO ESP32-S3 + Wio-SX1262 collar node that broadcasts device ID and battery voltage at a conservative interval; Cardputer side would act as a handheld RSSI/last-heard finder, with optional lost-mode beaconing and no GPS requirement for the first pass.
-- LoRa TX Planning: active; `LoRa Range Test is the only Cardputer TX feature`; see `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`.
-- XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: in `nodes/xiao_sx1262_lora_ack`; the standalone-header mapping (`GPIO5` NSS, `GPIO2` DIO1, `GPIO1` RF switch) was hardware-validated by manual `P` probes with `SCBR,NODE,1,xiao-sx1262-ack` received on Cardputer `LoRa Packets`. The B2B kit environment remains available, the node replies with `SCBR,ACK,1,xiao-sx1262-ack`, and it has no periodic beacons.
-- LoRa Range Test: implemented as `LoRa Range`; `A` opens `/tracks/lora-rangeNNN.csv` and arms it, `P` sends `SCBR,PING,1` and waits up to 10 seconds for `SCBR,ACK,1`, and `C` clears display counters. It logs ACKs, timeouts, and TX errors with RSSI/SNR.
-  - Scoober Pager: simple LoRa short-message texting between devices, starting with canned messages.
-  - Location Beacon: periodically broadcast device ID, battery, and optional GPS position after transmit guardrails are defined.
-  - MQTT LoRa Bridge: when Wi-Fi is connected, forward received LoRa packets into the Raspberry Pi MQTT system.
   - Signal Map: log GPS position plus LoRa RSSI/SNR from a known beacon for coverage mapping.
   - Treasure Hunt Mode: store waypoints on microSD and navigate to them with distance/bearing hints.
   - Satellite Pass Tracker: later advanced feature for ISS/NOAA/other selected satellites using downloaded CelesTrak orbit data cached on microSD and SGP4-style pass prediction.
+- LoRa TX planning and range test were successfully tested; the active TX screen is now `LoRa Messages`. See `docs/superpowers/plans/2026-09-22-lora-messages.md`.
+- XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: in `nodes/xiao_sx1262_lora_ack`; the standalone-header mapping (`GPIO5` NSS, `GPIO2` DIO1, `GPIO1` RF switch) was hardware-validated by manual `P` probes with `SCBR,NODE,1,xiao-sx1262-ack` received on Cardputer `LoRa Packets`. The B2B kit environment remains available, the node replies with `SCBR,ACK,1,xiao-sx1262-ack`, and it has no periodic beacons.
+- Historical LoRa Range Test (retired from the menu): `A` opened `/tracks/lora-rangeNNN.csv` and armed it; `P` sent `SCBR,PING,1` and waited for `SCBR,ACK,1`.
 - Recommended implementation order:
   - GNSS Dashboard: implemented as `GNSS Dash`; user reported it is looking good on hardware on 2026-08-26
   - GNSS Satellite Sky View: implemented as `GNSS Sky`; selected satellite confirmed on hardware on 2026-08-28
@@ -372,9 +373,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - LoRa TX planning: active gate; `LoRa Range Test is the only Cardputer TX feature`
   - XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: hardware-validated manual probe path in `nodes/xiao_sx1262_lora_ack`
   - LoRa Ping / Range Test: implemented and awaiting its dedicated Cardputer TX/ACK/CSV hardware check
-  - Scoober Pager: after range-test stability, starting with canned messages
-  - Location Beacon: after explicit privacy, interval, and airtime choices
-  - MQTT LoRa Bridge / Signal Map: after the basic TX/RX protocol and logging are proven
+  - Signal Map: after the basic TX/RX protocol and logging are proven
 - Hardware test checklist for the new Priority #11 pass:
   - open `Breadcrumbs`, confirm GNSS status updates, and confirm no LoRa radio/cap init is required
   - press `S` in `Breadcrumbs`, confirm `/tracks/trackNNN.csv` is created on microSD

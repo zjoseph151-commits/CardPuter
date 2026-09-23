@@ -9,7 +9,15 @@ void handleKeyboard() {
   printKeyState(keys);
 
   if (currentScreen != Screen::MainMenu && isMenuBackKey(keys)) {
-    if (currentScreen == Screen::WifiSaveConfirm) {
+    if (currentScreen == Screen::LoraMessages && loraMessageComposing) {
+      if (loraMessageDraft.length() > 0) {
+        deleteLoraMessageCharacter();
+      } else {
+        cancelLoraMessageDraft();
+      }
+      renderLoraMessages();
+      return;
+    } else if (currentScreen == Screen::WifiSaveConfirm) {
       returnToWifiScan();
     } else if (currentScreen == Screen::SavedWifiDeleteConfirm) {
       setScreen(Screen::SavedWifi);
@@ -265,10 +273,20 @@ void handleKeyboard() {
     }
   } else if (currentScreen == Screen::LoraDiag) {
     bool retry = keys.enter;
+    bool changed = false;
 
     for (char key : keys.word) {
       if (key == 'r' || key == 'R') {
         retry = true;
+      } else if (key == 'c' || key == 'C') {
+        clearLoraDiagPackets();
+        changed = true;
+      } else if (key == ';' || key == ',') {
+        changeLoraDiagPage(-1);
+        changed = true;
+      } else if (key == '.' || key == '/') {
+        changeLoraDiagPage(1);
+        changed = true;
       }
     }
 
@@ -276,6 +294,9 @@ void handleKeyboard() {
       stopLoraDiagnostics();
       resetLoraDiagnostics();
       showLoraDiag();
+    } else if (changed) {
+      renderLoraDiag();
+      renderOledStatusDashboard();
     }
   } else if (currentScreen == Screen::GnssDashboard) {
     bool reset = keys.enter;
@@ -356,52 +377,33 @@ void handleKeyboard() {
       renderBreadcrumbLogger();
       renderOledStatusDashboard();
     }
-  } else if (currentScreen == Screen::LoraPacketMonitor) {
-    bool reset = keys.enter;
-    bool changed = false;
-
-    for (char key : keys.word) {
-      if (key == 'r' || key == 'R') {
-        reset = true;
-      } else if (key == 'c' || key == 'C') {
-        clearLoraPacketMonitor();
-        changed = true;
+  } else if (currentScreen == Screen::LoraMessages) {
+    if (loraMessageComposing) {
+      for (char key : keys.word) {
+        appendLoraMessageCharacter(key);
+      }
+      if (keys.enter) {
+        sendLoraMessageDraft();
+      }
+    } else {
+      for (char key : keys.word) {
+        if (key == 'n' || key == 'N') {
+          startLoraMessageDraft();
+        } else if (key == 'r' || key == 'R') {
+          stopLoraMessages();
+          initLoraMessages();
+        } else if (key == ';' || key == ',') {
+          moveLoraMessageSelection(-1);
+        } else if (key == '.' || key == '/') {
+          moveLoraMessageSelection(1);
+        }
+      }
+      if (keys.enter) {
+        startLoraMessageDraft();
       }
     }
-
-    if (reset) {
-      stopLoraPacketMonitor();
-      showLoraPacketMonitor();
-    } else if (changed) {
-      renderLoraPacketMonitor();
-      renderOledStatusDashboard();
-    }
-  } else if (currentScreen == Screen::LoraRangeTest) {
-    bool reset = keys.enter;
-    bool changed = false;
-
-    for (char key : keys.word) {
-      if (key == 'a' || key == 'A') {
-        toggleLoraRangeArm();
-        changed = true;
-      } else if (key == 'p' || key == 'P') {
-        sendLoraRangePing();
-        changed = true;
-      } else if (key == 'c' || key == 'C') {
-        clearLoraRangeTest();
-        changed = true;
-      } else if (key == 'r' || key == 'R') {
-        reset = true;
-      }
-    }
-
-    if (reset) {
-      stopLoraRangeTest();
-      showLoraRangeTest();
-    } else if (changed) {
-      renderLoraRangeTest();
-      renderOledStatusDashboard();
-    }
+    renderLoraMessages();
+    renderOledStatusDashboard();
   }
 }
 

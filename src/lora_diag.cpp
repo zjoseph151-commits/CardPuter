@@ -3,6 +3,10 @@
 #include <RadioLib.h>
 #include "utility/PI4IOE5V6408_Class.hpp"
 
+unsigned long loraDiagLastPacketMs = 0;
+uint16_t loraDiagLastPacketLength = 0;
+uint8_t loraDiagPage = 0;
+
 namespace {
 
 m5::PI4IOE5V6408_Class loraIoExpander(LORA_IO_EXPANDER_ADDRESS, 400000,
@@ -91,7 +95,15 @@ void updateLoraRadioReceive() {
 
   if (state == RADIOLIB_ERR_NONE) {
     loraPacketCount++;
-    loraLastPacket = clippedLoraText(packet, 28);
+    loraLastPacket = clippedLoraText(packet, 64);
+    for (int i = 0; i < loraLastPacket.length(); ++i) {
+      const char c = loraLastPacket.charAt(i);
+      if (c < 32 || c > 126) {
+        loraLastPacket.setCharAt(i, '.');
+      }
+    }
+    loraDiagLastPacketLength = packet.length();
+    loraDiagLastPacketMs = millis();
     loraLastRssi = loraRadio.getRSSI();
     loraLastSnr = loraRadio.getSNR();
     loraRadioStatus = "Packet received";
@@ -132,36 +144,60 @@ void showLoraDiag() {
 void renderLoraDiag() {
   lastLoraDiagRenderMs = millis();
   beginContentDraw();
+  contentCanvas.setFont(&fonts::Font0);
 
-  contentCanvas.printf("Cap:%s RF:%s\n",
-                       loraIoExpanderDetected ? "yes" : "no",
-                       loraRfSwitchEnabled ? "on" : "off");
-  contentCanvas.printf("Radio:%s\n",
-                       clippedLoraText(loraRadioStatus, 23).c_str());
-  contentCanvas.printf("RX %.1fMHz Pk:%lu\n", LORA_DIAG_RX_FREQUENCY_MHZ,
-                       static_cast<unsigned long>(loraPacketCount));
-  contentCanvas.printf("RSSI:%s SNR:%s\n",
-                       (loraPacketCount > 0
-                            ? loraMetricText(loraLastRssi, loraPacketCount)
-                            : loraInstantRssiText())
-                           .c_str(),
-                       loraSnrText().c_str());
-  contentCanvas.printf("GNSS:%s S:%s HD:%s\n",
-                       loraGnssHasFreshFix() ? "Fix" : "NoFix",
-                       loraGnssSatellitesText().c_str(),
-                       loraGnssHdopText().c_str());
-  contentCanvas.println(clippedLoraText(
-      loraGnssCoordinateText("Lat", loraGnssLatitude), 24));
-  contentCanvas.println(clippedLoraText(
-      loraGnssCoordinateText("Lon", loraGnssLongitude), 24));
-  contentCanvas.println(clippedLoraText(loraGnssTimeText(), 24));
-  contentCanvas.printf("NMEA:%lu/%lu bad:%lu\n",
-                       static_cast<unsigned long>(loraGnssLineCount),
-                       static_cast<unsigned long>(loraGnssPassedChecksum),
-                       static_cast<unsigned long>(loraGnssFailedChecksum));
-  contentCanvas.printf("OK/R Back %s\n", LORA_DIAG_NO_TX_NOTICE);
+  if (loraDiagPage == 0) {
+    contentCanvas.printf("Packets  1/2  %.1f BW%.0f SF%u\n",
+                         LORA_DIAG_RX_FREQUENCY_MHZ, LORA_DIAG_BANDWIDTH_KHZ,
+                         LORA_DIAG_SPREADING_FACTOR);
+    contentCanvas.printf("Radio:%s\n",
+                         clippedLoraText(loraRadioStatus, 24).c_str());
+    contentCanvas.printf("Pk:%lu CRC:%lu Err:%lu\n",
+                         static_cast<unsigned long>(loraPacketCount),
+                         static_cast<unsigned long>(loraCrcErrorCount),
+                         static_cast<unsigned long>(loraReceiveErrorCount));
+    contentCanvas.printf("Noise:%s Pkt:%s SNR:%s\n",
+                         loraInstantRssiText().c_str(),
+                         loraMetricText(loraLastRssi, loraPacketCount).c_str(),
+                         loraSnrText().c_str());
+    contentCanvas.printf("Len:%u Age:%s\n", loraDiagLastPacketLength,
+                         loraDiagLastPacketMs == 0
+                             ? "--"
+                             : (String((millis() - loraDiagLastPacketMs) /
+                                       1000UL) + "s").c_str());
+    contentCanvas.println("Payload:");
+    contentCanvas.println(clippedLoraText(
+        loraLastPacket.length() > 0 ? loraLastPacket : String("Waiting"), 28));
+    if (loraLastPacket.length() > 28) {
+      contentCanvas.println(clippedLoraText(loraLastPacket.substring(28), 28));
+    }
+    contentCanvas.println("Arrows page C clear OK/R restart");
+  } else {
+    contentCanvas.printf("Hardware/GNSS  2/2  Cap:%s RF:%s\n",
+                         loraIoExpanderDetected ? "yes" : "no",
+                         loraRfSwitchEnabled ? "on" : "off");
+    contentCanvas.printf("Radio:%s (%d)\n",
+                         clippedLoraText(loraRadioStatus, 18).c_str(),
+                         loraRadioState);
+    contentCanvas.printf("915 BW125 SF12 CR4/5 SW34\n");
+    contentCanvas.printf("Pre:20  RX only\n");
+    contentCanvas.printf("GNSS:%s S:%s HD:%s\n",
+                         loraGnssHasFreshFix() ? "Fix" : "NoFix",
+                         loraGnssSatellitesText().c_str(),
+                         loraGnssHdopText().c_str());
+    contentCanvas.println(clippedLoraText(
+        loraGnssCoordinateText("Lat", loraGnssLatitude), 24));
+    contentCanvas.println(clippedLoraText(
+        loraGnssCoordinateText("Lon", loraGnssLongitude), 24));
+    contentCanvas.println(clippedLoraText(loraGnssTimeText(), 24));
+    contentCanvas.printf("NMEA:%lu ok:%lu bad:%lu\n",
+                         static_cast<unsigned long>(loraGnssLineCount),
+                         static_cast<unsigned long>(loraGnssPassedChecksum),
+                         static_cast<unsigned long>(loraGnssFailedChecksum));
+  }
 
   commitContentDraw();
+  contentCanvas.setFont(&fonts::Font2);
 }
 
 bool initLoraDiagnostics() {
@@ -265,6 +301,8 @@ void resetLoraDiagnostics() {
   loraStatus = "Not initialized.";
   loraRadioStatus = "Not initialized.";
   loraLastPacket = "";
+  loraDiagLastPacketMs = 0;
+  loraDiagLastPacketLength = 0;
   loraRadioState = 0;
   loraLastRssi = 0.0f;
   loraLastSnr = 0.0f;
@@ -278,8 +316,23 @@ void resetLoraDiagnostics() {
   lastLoraDiagRenderMs = 0;
 }
 
+void clearLoraDiagPackets() {
+  loraPacketCount = 0;
+  loraCrcErrorCount = 0;
+  loraReceiveErrorCount = 0;
+  loraLastPacket = "";
+  loraDiagLastPacketLength = 0;
+  loraDiagLastPacketMs = 0;
+  loraRadioStatus = loraListening ? "Listening RX only" : "Cleared";
+}
+
+void changeLoraDiagPage(int direction) {
+  loraDiagPage = direction > 0 ? 1 : 0;
+}
+
 void stopLoraDiagnostics() {
   if (loraRadioReady) {
+    loraRadio.clearDio1Action();
     loraRadio.sleep();
   }
 
@@ -287,4 +340,5 @@ void stopLoraDiagnostics() {
   stopLoraGnssSerial();
 
   resetLoraDiagnostics();
+  loraDiagPage = 0;
 }

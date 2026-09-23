@@ -21,7 +21,7 @@ def test_scoober_menu_structure():
     assert '"GNSS Sky"' in SOURCE
     assert '"Return Home"' in SOURCE
     assert '"Breadcrumbs"' in SOURCE
-    assert '"LoRa Packets"' in SOURCE
+    assert '"LoRa Messages"' in SOURCE
     assert '"LoRa Diag"' in SOURCE
     assert '"Level"' in SOURCE
 
@@ -63,9 +63,10 @@ def test_scoober_menu_structure():
     assert "Screen::RtcStatus" in SOURCE
     assert "Screen::SdManager" in SOURCE
     assert "Screen::BreadcrumbLogger" in SOURCE
-    assert "Screen::LoraPacketMonitor" in SOURCE
-    assert "Screen::LoraRangeTest" in SOURCE
-    assert "{\"LoRa Range\", Screen::LoraRangeTest}" in SOURCE
+    assert "Screen::LoraMessages" in SOURCE
+    assert "{\"LoRa Messages\", Screen::LoraMessages}" in SOURCE
+    assert "Screen::LoraPacketMonitor" not in SOURCE
+    assert "Screen::LoraRangeTest" not in SOURCE
     assert "key == ';'" in SOURCE
     assert "key == '.'" in SOURCE
     assert "keys.enter" in SOURCE

@@ -1,10 +1,9 @@
 # XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node
 
-This is the planned companion node for Scoober's first transmit-capable
-Priority #11 feature, `LoRa Ping / Range Test`.
-
-It is intentionally separate from the active Cardputer firmware. The Cardputer
-firmware remains RX-only until the dedicated range-test screen is added.
+This is the awake serial test peer for Scoober's `LoRa Messages` feature.
+It remains a separate PlatformIO project. The former ping/range and 60-second
+deep-sleep beacon experiments passed on hardware and are now historical; a
+sleeping node could not receive interactive messages.
 
 ## Hardware
 
@@ -38,22 +37,27 @@ NSS 41, DIO1 39, RST 42, BUSY 40, and RF_SW 38.
 - Coding rate: CR 4/5
 - Sync word: 0x34
 - Preamble: 20 symbols
-- TX power: 2 dBm
+- TX power: 5 dBm, DC-DC regulation
 - Manual transmit cooldown: 10 seconds
 
-These match the current Cardputer `LoRa Diag` and `LoRa Packets` receive
-settings.
+The Cardputer uses the same modulation settings and 2 dBm TX power.
 
 ## Behavior
 
-- Starts in receive mode and does not send periodic beacons.
+- Stays awake in receive mode and does not send periodic beacons.
 - Press the Wio user button, or type `p` in serial, to send one manual probe:
   `SCBR,NODE,1,xiao-sx1262-ack,<seq>,<uptime_ms>`.
+- Type `m <text>` followed by Enter to send a 1-64 character printable ASCII
+  message to the Cardputer. The node waits for a matching `SCBR,MACK,1` reply.
+- Incoming Cardputer `SCBR,MSG,1` text prints to serial. The node sends a
+  matching `SCBR,MACK,1` and ACKs duplicates again without printing them twice.
 - Type `s` in serial to print the current status.
 - Type `r` in serial to retry SX1262 initialization after checking the board
   connection; this does not require reflashing the XIAO.
-- When it receives a matching Cardputer ping beginning with `SCBR,PING,1,`, it
-  replies with `SCBR,ACK,1,xiao-sx1262-ack,<seq>,<rssi>,<snr>,<uptime_ms>`.
+
+Wire format: `SCBR,MSG,1,<sender>,<target>,<sequence>,<body>` and
+`SCBR,MACK,1,<sender>,<target>,<sequence>`. Commas in the body are retained.
+This is a local test protocol, not LoRaWAN or an encrypted messenger.
 
 ## Startup Check
 
@@ -95,7 +99,7 @@ python -m platformio run -d nodes/xiao_sx1262_lora_ack
 
 ## Upload
 
-Attach the LoRa antenna before using the manual probe or ACK behavior.
+Attach the LoRa antenna before transmitting messages, probes, or ACKs.
 
 From this folder:
 
@@ -120,8 +124,10 @@ python -m platformio device monitor -d nodes/xiao_sx1262_lora_ack --baud 115200
 First hardware checks:
 
 1. Confirm serial prints `Initializing SX1262... ok.`
-2. Open Cardputer `LoRa Packets`.
+2. Open Cardputer `LoRa Diag` and check its packet page.
 3. Press the XIAO/Wio user button or type `p`.
 4. Confirm Cardputer packet count, RSSI, SNR, length, age, and payload update.
-5. Confirm no periodic packets appear unless a manual probe is sent or a ping is
-   received.
+5. Open Cardputer `LoRa Messages`, compose and send text, and confirm it prints
+   on node serial and becomes ACKed on Cardputer.
+6. Enter `m hello from XIAO` on serial and confirm the Cardputer receives it.
+7. Confirm no periodic packets appear while the node is awake and idle.

@@ -91,12 +91,8 @@ void loop() {
     serviceBreadcrumbLogger();
   }
 
-  if (currentScreen == Screen::LoraPacketMonitor) {
-    serviceLoraPacketMonitor();
-  }
-
-  if (currentScreen == Screen::LoraRangeTest) {
-    serviceLoraRangeTest();
+  if (currentScreen == Screen::LoraMessages) {
+    serviceLoraMessages();
   }
 
   serviceOledStatusDashboard();

@@ -21,12 +21,8 @@ void setScreen(Screen screen) {
       screen != Screen::BreadcrumbLogger) {
     stopBreadcrumbLogger();
   }
-  if (currentScreen == Screen::LoraPacketMonitor &&
-      screen != Screen::LoraPacketMonitor) {
-    stopLoraPacketMonitor();
-  }
-  if (currentScreen == Screen::LoraRangeTest && screen != Screen::LoraRangeTest) {
-    stopLoraRangeTest();
+  if (currentScreen == Screen::LoraMessages && screen != Screen::LoraMessages) {
+    stopLoraMessages();
   }
 
   currentScreen = screen;
@@ -42,8 +38,7 @@ void setScreen(Screen screen) {
   lastGnssSkyViewRenderMs = 0;
   lastReturnHomeRenderMs = 0;
   lastBreadcrumbLoggerRenderMs = 0;
-  lastLoraPacketMonitorRenderMs = 0;
-  lastLoraRangeRenderMs = 0;
+  lastLoraMessageRenderMs = 0;
 
   switch (currentScreen) {
     case Screen::MainMenu:
@@ -141,13 +136,9 @@ void setScreen(Screen screen) {
       drawScreenFrame("Breadcrumb Logger");
       showBreadcrumbLogger();
       break;
-    case Screen::LoraPacketMonitor:
-      drawScreenFrame("LoRa Packets (RX only)");
-      showLoraPacketMonitor();
-      break;
-    case Screen::LoraRangeTest:
-      drawScreenFrame("LoRa Ping / Range Test");
-      showLoraRangeTest();
+    case Screen::LoraMessages:
+      drawScreenFrame("LoRa Messages");
+      showLoraMessages();
       break;
     case Screen::LoraDiag:
       drawScreenFrame("LoRa Diag (RX only)");

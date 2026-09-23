@@ -276,9 +276,8 @@ bool sdManagerBusyForSdWrite() {
     return true;
   }
 
-  if (loraDiagInitialized || loraListening || loraPacketMonitorInitialized ||
-      loraPacketMonitorListening || loraRangeInitialized || loraRangeListening ||
-      loraRangeTransmitting) {
+  if (loraDiagInitialized || loraListening || loraMessageInitialized ||
+      loraMessageListening || loraMessageTransmitting) {
     sdManagerStatus = "Busy: LoRa active.";
     return true;
   }
