@@ -212,6 +212,7 @@ enum class Screen {
   RtcStatus,
   GnssDashboard,
   GnssSkyView,
+  SatellitePassTracker,
   ReturnHome,
   BreadcrumbLogger,
   LoraDiag,
@@ -735,6 +736,19 @@ void deleteLoraMessageCharacter();
 void cancelLoraMessageDraft();
 void sendLoraMessageDraft();
 void moveLoraMessageSelection(int direction);
+void showSatellitePassTracker();
+void renderSatellitePassTracker();
+void serviceSatellitePassTracker();
+void stopSatellitePassTracker();
+void moveSatellitePassTarget(int direction);
+void refreshSatellitePassElements();
+void recalculateSatellitePass();
+void startSatelliteCatalogEntry();
+void appendSatelliteCatalogDigit(char digit);
+void deleteSatelliteCatalogDigit();
+void applySatelliteCatalogEntry();
+bool satellitePassEditingCatalog();
+void buildSatellitePassOledLines(String lines[PI_MONITOR_OLED_MESSAGE_LINE_COUNT]);
 bool loraGnssHasFreshFix();
 String loraGnssSatellitesText();
 String loraGnssHdopText();

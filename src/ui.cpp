@@ -24,6 +24,10 @@ void setScreen(Screen screen) {
   if (currentScreen == Screen::LoraMessages && screen != Screen::LoraMessages) {
     stopLoraMessages();
   }
+  if (currentScreen == Screen::SatellitePassTracker &&
+      screen != Screen::SatellitePassTracker) {
+    stopSatellitePassTracker();
+  }
 
   currentScreen = screen;
   clearOledStatusLine();
@@ -127,6 +131,10 @@ void setScreen(Screen screen) {
     case Screen::GnssSkyView:
       drawScreenFrame("GNSS Sky View");
       showGnssSkyView();
+      break;
+    case Screen::SatellitePassTracker:
+      drawScreenFrame("Satellite Passes");
+      showSatellitePassTracker();
       break;
     case Screen::ReturnHome:
       drawScreenFrame("Return Home");

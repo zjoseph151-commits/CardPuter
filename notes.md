@@ -39,6 +39,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/breadcrumb_logger.cpp`: `Breadcrumbs` Priority #11 screen writing fresh GNSS fixes to `/tracks/trackNNN.csv` on microSD without starting the LoRa radio.
 - `src/lora_diag.cpp`: paged RX-only M5Stack Cap LoRa-1262 packet and hardware/GNSS diagnostics.
 - `src/lora_messages.cpp`: manual short-message TX/RX with matched ACKs and in-memory history.
+- `src/satellite_pass_tracker.cpp`: first `Sat Passes` pass using fresh GNSS fix/UTC, SD-cached CelesTrak TLEs, and SGP4; no SX1262 transmit path.
 - `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
 - `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`: LoRa TX planning gate before Priority #11 transmit-capable firmware work.
@@ -62,6 +63,7 @@ The active menu is defined in `MENU_ITEMS`:
 {"RTC", Screen::RtcStatus}
 {"GNSS Dash", Screen::GnssDashboard}
 {"GNSS Sky", Screen::GnssSkyView}
+{"Sat Passes", Screen::SatellitePassTracker}
 {"Return Home", Screen::ReturnHome}
 {"Breadcrumbs", Screen::BreadcrumbLogger}
 {"LoRa Diag", Screen::LoraDiag}
@@ -541,7 +543,8 @@ Priority #11: Cap LoRa-1262 feature expansion.
 
 - 2026-09-22: User confirmed bidirectional Cardputer/XIAO packet exchange and the Cardputer `LoRa Range` test. The XIAO's 60-second deep-sleep beacon test worked; node TX is now 5 dBm with DC-DC mode. Cardputer TX remains 2 dBm.
 - Implemented design is in `docs/superpowers/plans/2026-09-22-lora-messages.md`: the packet monitor and cap/GNSS diagnostics now share one paged RX-only screen; typed messaging replaces the range UI. Old `/tracks/lora-rangeNNN.csv` files are historical data and must not be deleted.
-- The XIAO's successful minute deep-sleep experiment is disabled for the current awake serial messaging peer. Message/ACK hardware validation remains pending; its display belongs to a future chat.
+- The XIAO's successful minute deep-sleep experiment is disabled for the current awake serial messaging peer. The user reported the updated LoRa screens working well on 2026-09-29; its display belongs to a future chat.
+- `Sat Passes` is the next Priority #11 feature. It never starts SX1262; the CelesTrak TLE query requires explicit `FORMAT=TLE`, the selected object is cached under `/config`, and pass predictions require fresh GNSS observer coordinates and UTC. The HTTPS root certificate is embedded in `include/celestrak_ca.h`; if CelesTrak changes its issuing CA, update that certificate. Hardware timing comparison is pending.
 
 - First milestone added: `GNSS Dash`.
 - `GNSS Dash` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus, or transmit.
@@ -743,6 +746,7 @@ python tools/check_lora_cap_diag.py
 python tools/check_lora_gnss_dashboard.py
 python tools/check_lora_gnss_sky_view.py
 python tools/check_lora_messages.py
+python tools/check_satellite_pass_tracker.py
 python tools/check_menu_structure.py
 python tools/check_nrf24_feature.py
 python tools/check_oled_test.py

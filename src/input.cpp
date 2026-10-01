@@ -9,7 +9,12 @@ void handleKeyboard() {
   printKeyState(keys);
 
   if (currentScreen != Screen::MainMenu && isMenuBackKey(keys)) {
-    if (currentScreen == Screen::LoraMessages && loraMessageComposing) {
+    if (currentScreen == Screen::SatellitePassTracker &&
+        satellitePassEditingCatalog()) {
+      deleteSatelliteCatalogDigit();
+      renderSatellitePassTracker();
+      return;
+    } else if (currentScreen == Screen::LoraMessages && loraMessageComposing) {
       if (loraMessageDraft.length() > 0) {
         deleteLoraMessageCharacter();
       } else {
@@ -334,6 +339,22 @@ void handleKeyboard() {
       renderGnssSkyView();
       renderOledStatusDashboard();
     }
+  } else if (currentScreen == Screen::SatellitePassTracker) {
+    if (satellitePassEditingCatalog()) {
+      for (char key : keys.word) appendSatelliteCatalogDigit(key);
+      if (keys.enter) applySatelliteCatalogEntry();
+    } else {
+      for (char key : keys.word) {
+        if (key == ';' || key == ',') moveSatellitePassTarget(-1);
+        else if (key == '.' || key == '/') moveSatellitePassTarget(1);
+        else if (key == 'n' || key == 'N') startSatelliteCatalogEntry();
+        else if (key == 'u' || key == 'U') refreshSatellitePassElements();
+        else if (key == 'r' || key == 'R') recalculateSatellitePass();
+      }
+      if (keys.enter) recalculateSatellitePass();
+    }
+    renderSatellitePassTracker();
+    renderOledStatusDashboard();
   } else if (currentScreen == Screen::ReturnHome) {
     bool reset = keys.enter;
     bool changed = false;

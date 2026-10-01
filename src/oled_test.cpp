@@ -47,6 +47,8 @@ String screenTitleForOled() {
       return "GNSS Dash";
     case Screen::GnssSkyView:
       return "GNSS Sky";
+    case Screen::SatellitePassTracker:
+      return "Sat Passes";
     case Screen::ReturnHome:
       return "Return Home";
     case Screen::BreadcrumbLogger:
@@ -821,6 +823,9 @@ bool renderOledHelpDashboard() {
     case Screen::GnssSkyView:
       buildGnssSkyViewOledHelpLines(lines);
       break;
+    case Screen::SatellitePassTracker:
+      buildSatellitePassOledLines(lines);
+      break;
     case Screen::ReturnHome:
       buildReturnHomeOledHelpLines(lines);
       break;
@@ -880,6 +885,9 @@ void buildOledDashboardLines(String lines[OLED_STATUS_LINE_COUNT]) {
       break;
     case Screen::GnssSkyView:
       buildGnssSkyViewOledLines(lines);
+      break;
+    case Screen::SatellitePassTracker:
+      buildSatellitePassOledLines(lines);
       break;
     case Screen::ReturnHome:
       buildReturnHomeOledLines(lines);

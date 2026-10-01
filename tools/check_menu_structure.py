@@ -19,6 +19,7 @@ def test_scoober_menu_structure():
     assert '"RTC"' in SOURCE
     assert '"GNSS Dash"' in SOURCE
     assert '"GNSS Sky"' in SOURCE
+    assert '"Sat Passes"' in SOURCE
     assert '"Return Home"' in SOURCE
     assert '"Breadcrumbs"' in SOURCE
     assert '"LoRa Messages"' in SOURCE
@@ -63,6 +64,7 @@ def test_scoober_menu_structure():
     assert "Screen::RtcStatus" in SOURCE
     assert "Screen::SdManager" in SOURCE
     assert "Screen::BreadcrumbLogger" in SOURCE
+    assert "Screen::SatellitePassTracker" in SOURCE
     assert "Screen::LoraMessages" in SOURCE
     assert "{\"LoRa Messages\", Screen::LoraMessages}" in SOURCE
     assert "Screen::LoraPacketMonitor" not in SOURCE

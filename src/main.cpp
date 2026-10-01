@@ -83,6 +83,10 @@ void loop() {
     serviceGnssSkyView();
   }
 
+  if (currentScreen == Screen::SatellitePassTracker) {
+    serviceSatellitePassTracker();
+  }
+
   if (currentScreen == Screen::ReturnHome) {
     serviceReturnHome();
   }

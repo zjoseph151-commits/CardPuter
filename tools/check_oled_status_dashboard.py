@@ -64,6 +64,7 @@ required_source_tokens = [
     "buildGnssSkyViewOledHelpLines",
     "buildReturnHomeOledHelpLines",
     "buildBreadcrumbLoggerOledHelpLines",
+    "buildSatellitePassOledLines",
     "buildLoraMessagesOledHelpLines",
     "buildLoraDiagOledHelpLines",
     "piMonitorLatestOledMessageText",

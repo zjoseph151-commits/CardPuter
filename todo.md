@@ -280,7 +280,9 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
 - 2026-09-22 transition: the user confirmed Cardputer/XIAO RX and TX, the Cardputer range test, and improved XIAO minute-beacon range after using 5 dBm and DC-DC mode. See `docs/superpowers/plans/2026-09-22-lora-messages.md`.
 - Implemented in firmware: `LoRa Packets` is merged into two-page RX-only `LoRa Diag`; `LoRa Range` is retired from the menu and replaced by typed `LoRa Messages` with matching ACKs and recent in-memory history. Preserve old range CSVs on microSD.
 - The XIAO now stays awake, prints incoming messages, ACKs them, and sends replies using serial `m <text>`. The earlier minute deep-sleep beacon was tested successfully but is disabled for messaging; its display is deferred to another chat.
-- Next hardware check: both diagnostic pages, Cardputer-to-XIAO message and ACK, XIAO-to-Cardputer reply and ACK, composer deletion/cancel, cooldown, timeout, and shared SPI recovery.
+- 2026-09-29: the user reports the LoRa diagnostics and messaging changes are working well on hardware; the earlier detailed checklist was not separately itemized as passed.
+- New `Sat Passes` first pass is implemented and build-tested. It offers ISS, NOAA 18/19, and a saved custom TLE catalog number, manual CelesTrak download into `/config/sat<id>.txt`, offline cache, and SGP4 next-pass prediction using fresh GNSS fix/UTC. See `docs/superpowers/plans/2026-09-29-satellite-pass-tracker.md`.
+- Next hardware check: download with Wi-Fi, use offline cache, verify no-fix/no-SD behavior and rate limit, then compare one pass against an independent SGP4 prediction at the same coordinates.
 
 - Use this priority for future Cap LoRa-1262 features after the diagnostics/GNSS parser foundation is stable.
 - Keep the Cap LoRa-1262 work split into separate menu features when that makes the UI clearer; do not force everything into one feature screen.
@@ -360,7 +362,7 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - LoRa Packet Monitor: first RX-only packet-viewer pass implemented as `LoRa Packets`; idle/listening behavior was confirmed as working fine on hardware on 2026-09-13.
   - Signal Map: log GPS position plus LoRa RSSI/SNR from a known beacon for coverage mapping.
   - Treasure Hunt Mode: store waypoints on microSD and navigate to them with distance/bearing hints.
-  - Satellite Pass Tracker: later advanced feature for ISS/NOAA/other selected satellites using downloaded CelesTrak orbit data cached on microSD and SGP4-style pass prediction.
+  - Satellite Pass Tracker: first `Sat Passes` implementation added; on-device validation and any future broader catalog/OMM support remain.
 - LoRa TX planning and range test were successfully tested; the active TX screen is now `LoRa Messages`. See `docs/superpowers/plans/2026-09-22-lora-messages.md`.
 - XIAO ESP32-S3 Wio-SX1262 LoRa ACK Node: in `nodes/xiao_sx1262_lora_ack`; the standalone-header mapping (`GPIO5` NSS, `GPIO2` DIO1, `GPIO1` RF switch) was hardware-validated by manual `P` probes with `SCBR,NODE,1,xiao-sx1262-ack` received on Cardputer `LoRa Packets`. The B2B kit environment remains available, the node replies with `SCBR,ACK,1,xiao-sx1262-ack`, and it has no periodic beacons.
 - Historical LoRa Range Test (retired from the menu): `A` opened `/tracks/lora-rangeNNN.csv` and armed it; `P` sent `SCBR,PING,1` and waited for `SCBR,ACK,1`.
