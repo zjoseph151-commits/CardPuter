@@ -15,6 +15,7 @@ const MenuItem MENU_ITEMS[] = {
     {"GNSS Dash", Screen::GnssDashboard},
     {"GNSS Sky", Screen::GnssSkyView},
     {"Sat Passes", Screen::SatellitePassTracker},
+    {"Flight Tracker", Screen::FlightTracker},
     {"Return Home", Screen::ReturnHome},
     {"Breadcrumbs", Screen::BreadcrumbLogger},
     {"LoRa Diag", Screen::LoraDiag},

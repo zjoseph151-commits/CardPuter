@@ -28,6 +28,9 @@ void setScreen(Screen screen) {
       screen != Screen::SatellitePassTracker) {
     stopSatellitePassTracker();
   }
+  if (currentScreen == Screen::FlightTracker && screen != Screen::FlightTracker) {
+    stopFlightTracker();
+  }
 
   currentScreen = screen;
   clearOledStatusLine();
@@ -135,6 +138,10 @@ void setScreen(Screen screen) {
     case Screen::SatellitePassTracker:
       drawScreenFrame("Satellite Passes");
       showSatellitePassTracker();
+      break;
+    case Screen::FlightTracker:
+      drawScreenFrame("Flight Tracker");
+      showFlightTracker();
       break;
     case Screen::ReturnHome:
       drawScreenFrame("Return Home");

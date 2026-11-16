@@ -452,6 +452,17 @@ Prioritized next tasks for the project. Keep this file current so a new Codex se
   - confirm create, rename, and delete each require a second OK confirmation
   - confirm Backspace steps back through SD Manager views before returning to the menu
 
+## Priority 13: Flight Tracker
+
+- First implementation added on 2026-10-18; firmware build and static guards pass, hardware validation is pending. See `docs/superpowers/plans/2026-10-18-flight-tracker.md`.
+- Manual nearby-aircraft search uses adsb.lol's `/v2/lat/{lat}/lon/{lon}/dist/{radius}` endpoint at 25 nm from a fresh Cap GNSS fix, with an existing Wi-Fi connection and GNSS UTC for HTTPS. It does not start LoRa, connect Wi-Fi, or read/write microSD; WiFi Connect still obtains credentials from `/config/wifi.txt`.
+- LCD list/detail and OLED help show callsign or hex ID, distance/bearing, altitude, groundspeed, position age, selection controls, provider attribution, and a not-for-navigation warning.
+- Requests have a 60-second cooldown; known response length is capped at 64 KiB, each aircraft object at 3 KiB, its filtered JSON document at 1.5 KiB, and retained aircraft at 12 nearest. No-fix, offline, loading, empty, stale, oversized, and API-error states are explicit.
+- 2026-11-15: the user observed `API data too complex` on hardware. The parser now processes one bounded aircraft at a time instead of holding the full array; hardware retest is pending.
+- Follow-up hardware search showed `API response incomplete`; the response reader now retries temporary TLS short reads and shows received/expected bytes if the body really stops early. Retest pending.
+- Terms rechecked on 2026-11-15: adsb.lol's `/v2/` endpoint is metered, with 500 unkeyed requests/day per IP and HTTP 429 with `Retry-After` when over quota. Data remains ODbL 1.0. Recheck before production distribution.
+- Next: run the hardware checklist in the plan and confirm the TLS chain, UI fit, response parsing, and data-age behavior on device.
+
 ## Done / Historical Milestones
 
 - Created starter PlatformIO firmware for Cardputer Adv.

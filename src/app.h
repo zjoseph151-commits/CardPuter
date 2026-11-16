@@ -213,6 +213,7 @@ enum class Screen {
   GnssDashboard,
   GnssSkyView,
   SatellitePassTracker,
+  FlightTracker,
   ReturnHome,
   BreadcrumbLogger,
   LoraDiag,
@@ -749,6 +750,15 @@ void deleteSatelliteCatalogDigit();
 void applySatelliteCatalogEntry();
 bool satellitePassEditingCatalog();
 void buildSatellitePassOledLines(String lines[PI_MONITOR_OLED_MESSAGE_LINE_COUNT]);
+void showFlightTracker();
+void renderFlightTracker();
+void serviceFlightTracker();
+void stopFlightTracker();
+void requestFlightTracker();
+void moveFlightSelection(int direction);
+void openFlightDetail();
+bool closeFlightDetail();
+void buildFlightTrackerOledLines(String lines[PI_MONITOR_OLED_MESSAGE_LINE_COUNT]);
 bool loraGnssHasFreshFix();
 String loraGnssSatellitesText();
 String loraGnssHdopText();

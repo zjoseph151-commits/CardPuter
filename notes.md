@@ -40,6 +40,7 @@ These notes preserve project context for future Codex sessions. They are intenti
 - `src/lora_diag.cpp`: paged RX-only M5Stack Cap LoRa-1262 packet and hardware/GNSS diagnostics.
 - `src/lora_messages.cpp`: manual short-message TX/RX with matched ACKs and in-memory history.
 - `src/satellite_pass_tracker.cpp`: first `Sat Passes` pass using fresh GNSS fix/UTC, SD-cached CelesTrak TLEs, and SGP4; no SX1262 transmit path.
+- `src/flight_tracker.cpp`: Priority #13 manual adsb.lol nearby-aircraft list/detail using fresh GNSS, existing Wi-Fi, bounded filtered JSON, and no LoRa or direct SD use.
 - `src/shared_spi.cpp`: shared external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - `src/level_tool.cpp`: BMI270 level/crosshair tool.
 - `docs/superpowers/plans/2026-09-13-lora-tx-planning.md`: LoRa TX planning gate before Priority #11 transmit-capable firmware work.
@@ -64,6 +65,7 @@ The active menu is defined in `MENU_ITEMS`:
 {"GNSS Dash", Screen::GnssDashboard}
 {"GNSS Sky", Screen::GnssSkyView}
 {"Sat Passes", Screen::SatellitePassTracker}
+{"Flight Tracker", Screen::FlightTracker}
 {"Return Home", Screen::ReturnHome}
 {"Breadcrumbs", Screen::BreadcrumbLogger}
 {"LoRa Diag", Screen::LoraDiag}
@@ -545,6 +547,9 @@ Priority #11: Cap LoRa-1262 feature expansion.
 - Implemented design is in `docs/superpowers/plans/2026-09-22-lora-messages.md`: the packet monitor and cap/GNSS diagnostics now share one paged RX-only screen; typed messaging replaces the range UI. Old `/tracks/lora-rangeNNN.csv` files are historical data and must not be deleted.
 - The XIAO's successful minute deep-sleep experiment is disabled for the current awake serial messaging peer. The user reported the updated LoRa screens working well on 2026-09-29; its display belongs to a future chat.
 - `Sat Passes` is the next Priority #11 feature. It never starts SX1262; the CelesTrak TLE query requires explicit `FORMAT=TLE`, the selected object is cached under `/config`, and pass predictions require fresh GNSS observer coordinates and UTC. The HTTPS root certificate is embedded in `include/celestrak_ca.h`; if CelesTrak changes its issuing CA, update that certificate. Hardware timing comparison is pending.
+- 2026-10-18 Priority #13: `Flight Tracker` is a separate experimental adsb.lol API client. It requests only on `R` from the fresh Cap GNSS fix with already-connected Wi-Fi, uses GNSS UTC to validate HTTPS, caps the response at 64 KiB and retained list at 12 nearest aircraft, and does not touch SX1262 or SD. The API's ODbL/production-use caveat and pending hardware checklist are in `docs/superpowers/plans/2026-10-18-flight-tracker.md`. Its ISRG Root X1 anchor is in `include/adsb_lol_ca.h` and must be rechecked if the provider's chain changes.
+- 2026-11-15: after `API data too complex` appeared on hardware, Flight Tracker changed to bounded per-aircraft streaming JSON so large `ac` arrays no longer occupy one 32 KiB document. The API now publishes a 500/day per-IP unkeyed quota for `/v2/`; retest on hardware.
+- A subsequent `API response incomplete` report prompted a bounded TLS reader change: poll available bytes, read in blocks, wait up to 20 seconds without progress, and show/log the received/declared size on a genuine short body. Hardware retest pending.
 
 - First milestone added: `GNSS Dash`.
 - `GNSS Dash` starts only the ATGM336H GNSS serial parser and does not initialize SX1262, claim the shared SPI bus, or transmit.
@@ -740,6 +745,7 @@ python tools/check_battery_trend.py
 python tools/check_breadcrumb_logger.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
+python tools/check_flight_tracker.py
 python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
 python tools/check_lora_cap_diag.py

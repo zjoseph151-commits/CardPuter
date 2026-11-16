@@ -25,13 +25,15 @@ Start here if this repository is opened in a fresh Codex chat.
 13. The `LoRa Range` ping/ACK/CSV experiment was successfully tested and retired from the menu. `LoRa Messages` keeps manual TX, a 10-second cooldown, 2 dBm Cardputer power, matching ACKs, and 915.0 MHz / 125 kHz / SF12 / CR 4/5 / sync word 0x34 / preamble 20. The user reports the updated LoRa screens are working well on hardware.
 14. Do not reopen the retired XIAO NRF24 two-node debugging path unless the user explicitly asks; it is historical only.
 15. Build with `python -m platformio run` if `pio` is not on PATH.
-16. Run all guard scripts before claiming work is complete:
+16. Priority #13 adds a build-tested `Flight Tracker` with manual adsb.lol searches from a fresh GNSS fix and existing Wi-Fi. Hardware validation is pending; see [the Flight Tracker plan](docs/superpowers/plans/2026-10-18-flight-tracker.md).
+17. Run all guard scripts before claiming work is complete:
 
 ```sh
 python tools/check_battery_trend.py
 python tools/check_breadcrumb_logger.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
+python tools/check_flight_tracker.py
 python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
 python tools/check_lora_cap_diag.py
@@ -83,6 +85,7 @@ Current state:
 - Has a `Breadcrumbs` Priority #11 screen that writes fresh-fix CSV track points to `/tracks/trackNNN.csv` on microSD without starting the LoRa radio.
 - Has a paged RX-only `LoRa Diag` screen combining packet metrics and hardware/GNSS details, plus a separate `LoRa Messages` screen for short typed messages with matching ACKs and in-memory history.
 - Has a build-tested `Sat Passes` Priority #11 screen for ISS, NOAA 18/19, and one custom TLE-compatible catalog number. It uses GNSS observer fix/UTC, manual CelesTrak downloads, `/config/sat<id>.txt` microSD cache, and SGP4 pass prediction; hardware validation is pending.
+- Has a build-tested Priority #13 `Flight Tracker` screen for manual nearby-aircraft queries with compact list/detail, bounded JSON parsing, and stale/error states; hardware validation is pending.
 - User confirmed Cap LoRa-1262 diagnostics are working on hardware on 2026-08-25.
 - User confirmed the Cap LoRa-1262 GNSS parser is working on hardware on 2026-08-26.
 - User reported the `GNSS Dash` Priority #11 screen is looking good on hardware on 2026-08-26.
@@ -238,11 +241,14 @@ Important build note:
 |-- notes.md
 |-- todo.md
 |-- platformio.ini
+|-- include/
+|   `-- adsb_lol_ca.h
 |-- src/
 |   |-- app.h
 |   |-- app_state.cpp
 |   |-- breadcrumb_logger.cpp
 |   |-- environment_screen.cpp
+|   |-- flight_tracker.cpp
 |   |-- gnss_dashboard.cpp
 |   |-- gnss_sky_view.cpp
 |   |-- i2c_hub.cpp
@@ -281,6 +287,7 @@ Important build note:
 |   |-- check_display_refresh.py
 |   |-- check_environment_feature.py
 |   |-- check_external_display_revisit.py
+|   |-- check_flight_tracker.py
 |   |-- check_level_tool.py
 |   |-- check_lora_cap_diag.py
 |   |-- check_lora_gnss_dashboard.py
@@ -339,6 +346,8 @@ File responsibilities:
 - [src/lora_diag.cpp](src/lora_diag.cpp): paged RX-only SX1262 packet and Cap/GNSS diagnostics.
 - [src/lora_messages.cpp](src/lora_messages.cpp): short manual message TX/RX, matching ACKs, and in-memory history.
 - [src/satellite_pass_tracker.cpp](src/satellite_pass_tracker.cpp): GNSS-based pass prediction using SD-cached CelesTrak TLEs and SGP4.
+- [src/flight_tracker.cpp](src/flight_tracker.cpp): Priority #13 manual adsb.lol nearby-aircraft list/detail using GNSS and an existing Wi-Fi connection.
+- [include/adsb_lol_ca.h](include/adsb_lol_ca.h): verified ISRG Root X1 certificate for the adsb.lol HTTPS client.
 - [docs/superpowers/plans/2026-09-13-lora-tx-planning.md](docs/superpowers/plans/2026-09-13-lora-tx-planning.md): Priority #11 LoRa TX planning gate before transmit-capable firmware work.
 - [src/shared_spi.cpp](src/shared_spi.cpp): external SPI chip-select and owner handoff helper for LoRa/microSD sharing.
 - [src/level_tool.cpp](src/level_tool.cpp): BMI270 level/crosshair tool.
@@ -363,6 +372,10 @@ The user confirmed packet exchange between the Cardputer Cap LoRa-1262 and the s
 
 `Sat Passes` is a first pass at an offline-first pass tracker. Select ISS, NOAA 18, NOAA 19, or enter a custom catalog number below 70000 with `N`. Connect through WiFi Connect, wait for a fresh Cap GNSS fix and valid UTC, then press `U` to fetch the selected satellite's TLE. Validated data is cached as `/config/sat<id>.txt` for offline use. Arrows change target; OK/`R` recalculates. The LCD shows rise, peak, and set in UTC with azimuth and peak elevation for the next pass reaching at least 10 degrees. Backspace leaves the screen; in custom entry it erases a digit or cancels an empty entry. Downloads are manual and CelesTrak requests are limited to one per satellite per two hours, even after a failed HTTP response or reboot. Predictions reject elements older than 14 days and label those older than three days. This feature is build-tested only; verify pass timing and pointing on hardware before relying on it.
 
+### Flight Tracker (Priority 13)
+
+`Flight Tracker` queries [adsb.lol](https://api.adsb.lol/docs) within 25 nautical miles of the fresh Cap GNSS fix used at fetch time. First connect through WiFi Connect and acquire valid GNSS UTC, then press `R` to search. It never connects automatically, uses the LoRa radio, or reads/writes the SD card itself; WiFi Connect continues to read `/config/wifi.txt`. Searches are manual with a 60-second cooldown. The response requires a known length no greater than 64 KiB; aircraft are parsed one at a time with a 3 KiB object and 1.5 KiB JSON bound, and the 12 nearest positioned aircraft are kept in memory. Arrows select an aircraft, OK opens detail, Backspace returns to list and then menu. Callsign (or hex ID), distance, true bearing, barometric altitude, groundspeed, and position age appear in the list/detail, with type and registration in detail. Loading, no-fix, offline, empty, stale, and API-error states are shown explicitly. OLED provides compact controls, source attribution, and state. This display is **not for navigation or collision avoidance**. [adsb.lol's current terms](https://api.adsb.lol/api/openapi.json) describe the `/v2/` API as metered, allow 500 unkeyed requests/day per IP, and publish data under ODbL 1.0. The 2026-11-15 streaming parser and TLS short-read fixes follow hardware `API data too complex` and `API response incomplete` reports and still need on-device retesting; see [the checklist](docs/superpowers/plans/2026-10-18-flight-tracker.md).
+
 ### Main Menu
 
 Menu items:
@@ -381,11 +394,12 @@ Menu items:
 12. GNSS Dash
 13. GNSS Sky
 14. Sat Passes
-15. Return Home
-16. Breadcrumbs
-17. LoRa Diag
-18. LoRa Messages
-19. Level
+15. Flight Tracker
+16. Return Home
+17. Breadcrumbs
+18. LoRa Diag
+19. LoRa Messages
+20. Level
 
 Navigation:
 
@@ -1542,6 +1556,7 @@ python tools/check_battery_trend.py
 python tools/check_breadcrumb_logger.py
 python tools/check_display_refresh.py
 python tools/check_environment_feature.py
+python tools/check_flight_tracker.py
 python tools/check_external_display_revisit.py
 python tools/check_level_tool.py
 python tools/check_lora_cap_diag.py

@@ -87,6 +87,10 @@ void loop() {
     serviceSatellitePassTracker();
   }
 
+  if (currentScreen == Screen::FlightTracker) {
+    serviceFlightTracker();
+  }
+
   if (currentScreen == Screen::ReturnHome) {
     serviceReturnHome();
   }

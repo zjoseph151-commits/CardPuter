@@ -14,6 +14,11 @@ void handleKeyboard() {
       deleteSatelliteCatalogDigit();
       renderSatellitePassTracker();
       return;
+    } else if (currentScreen == Screen::FlightTracker &&
+               closeFlightDetail()) {
+      renderFlightTracker();
+      renderOledStatusDashboard();
+      return;
     } else if (currentScreen == Screen::LoraMessages && loraMessageComposing) {
       if (loraMessageDraft.length() > 0) {
         deleteLoraMessageCharacter();
@@ -354,6 +359,15 @@ void handleKeyboard() {
       if (keys.enter) recalculateSatellitePass();
     }
     renderSatellitePassTracker();
+    renderOledStatusDashboard();
+  } else if (currentScreen == Screen::FlightTracker) {
+    for (char key : keys.word) {
+      if (key == ';' || key == ',') moveFlightSelection(-1);
+      else if (key == '.' || key == '/') moveFlightSelection(1);
+      else if (key == 'r' || key == 'R') requestFlightTracker();
+    }
+    if (keys.enter) openFlightDetail();
+    renderFlightTracker();
     renderOledStatusDashboard();
   } else if (currentScreen == Screen::ReturnHome) {
     bool reset = keys.enter;
